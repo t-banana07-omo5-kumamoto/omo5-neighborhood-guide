@@ -76,32 +76,44 @@
             <div class="text-[10px] text-stone-400">（曜日：<span id="cur-day-label">月</span>）</div>
           </div>
 
-          <div class="grid grid-cols-3 gap-3 mb-5">
-            <div class="rounded-2xl border border-stone-100 p-4">
-              <div class="text-[10px] text-stone-400 font-bold mb-1">営業</div>
-              <div class="text-2xl font-black text-green-600 leading-none">
-                <span id="open-count">0</span><span class="text-[11px] text-stone-400 font-bold">件</span>
-              </div>
-            </div>
+<div class="grid grid-cols-4 gap-3 mb-5">
+  <div class="rounded-2xl border border-stone-100 p-4">
+    <div class="text-[10px] text-stone-400 font-bold mb-1">営業</div>
+    <div class="text-2xl font-black text-green-600 leading-none">
+      <span id="open-count">0</span><span class="text-[11px] text-stone-400 font-bold">件</span>
+    </div>
+  </div>
 
-            <div class="rounded-2xl border border-stone-100 p-4">
-              <div class="text-[10px] text-stone-400 font-bold mb-1">休み</div>
-              <div class="text-2xl font-black text-stone-700 leading-none">
-                <span id="close-count">0</span><span class="text-[11px] text-stone-400 font-bold">件</span>
-              </div>
-            </div>
+  <div class="rounded-2xl border border-stone-100 p-4">
+    <div class="text-[10px] text-stone-400 font-bold mb-1">休み</div>
+    <div class="text-2xl font-black text-stone-700 leading-none">
+      <span id="close-count">0</span><span class="text-[11px] text-stone-400 font-bold">件</span>
+    </div>
+  </div>
 
-            <div class="rounded-2xl border border-stone-100 p-4">
-              <div class="text-[10px] text-stone-400 font-bold leading-tight mb-1">
-                夜営業 <span class="font-normal">（21時〜）</span><br>
-                <span class="font-normal">※時間記載ありのみ</span>
-              </div>
-              <div class="text-2xl font-black text-amber-600 leading-none">
-                <span id="night-rate">0</span><span class="text-[11px] text-stone-400 font-bold">%</span>
-                <span class="text-[11px] text-stone-400 font-bold">（<span id="night-count">0</span>件）</span>
-              </div>
-            </div>
-          </div>
+  <div class="rounded-2xl border border-stone-100 p-4">
+    <div class="text-[10px] text-stone-400 font-bold leading-tight mb-1">
+      夜営業 <span class="font-normal">（21時〜）</span><br>
+      <span class="font-normal">※時間記載ありのみ</span>
+    </div>
+    <div class="text-2xl font-black text-amber-600 leading-none">
+      <span id="night-rate">0</span><span class="text-[11px] text-stone-400 font-bold">%</span>
+      <span class="text-[11px] text-stone-400 font-bold">（<span id="night-count">0</span>件）</span>
+    </div>
+  </div>
+
+  <!-- ★追加：表示件数 -->
+  <div class="rounded-2xl border border-stone-100 p-4">
+    <div class="text-[10px] text-stone-400 font-bold mb-1">表示件数</div>
+    <div class="text-2xl font-black text-stone-800 leading-none">
+      <span id="shown-count">0</span><span class="text-[11px] text-stone-400 font-bold">件</span>
+    </div>
+    <div class="mt-1 text-[10px] text-stone-400">
+      全体：<span id="all-count">0</span>件
+    </div>
+  </div>
+</div>
+</div>
 
           <div class="grid grid-cols-2 gap-4 items-center">
             <div class="chart-container" style="height:160px">
