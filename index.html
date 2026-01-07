@@ -69,20 +69,58 @@
 
       <!-- Left Panel -->
       <div class="space-y-6">
-        <div class="bg-white rounded-[2rem] p-6 shadow-sm border border-stone-100">
-          <div class="flex justify-between items-center mb-4">
-            <h3 class="font-bold">本日の活気</h3>
-            <div class="text-right">
-              <span id="open-count" class="text-2xl font-black text-green-600">0</span>
-              <span class="text-[10px] text-stone-400"> / <span id="total-count">0</span>件 営業</span>
-            </div>
-          </div>
-          <div class="chart-container"><canvas id="ratioChart"></canvas></div>
-          <div class="mt-3 text-[11px] text-stone-500">
-            <!-- ※ここは後で消す：営業扱い＝その曜日の欄が「休」/「休み」を含まないもの -->
-            営業扱い：その曜日の欄が「休」/「休み」を含まないもの
-          </div>
-        </div>
+       <!-- KPI + Mini Chart -->
+<div class="bg-white rounded-[2rem] p-6 shadow-sm border border-stone-100">
+
+  <div class="flex items-center justify-between mb-4">
+    <h3 class="font-bold">今日のサマリー</h3>
+    <div class="text-[10px] text-stone-400">（曜日：<span id="cur-day-label">月</span>）</div>
+  </div>
+
+  <!-- KPI row -->
+  <div class="grid grid-cols-3 gap-3 mb-5">
+    <div class="rounded-2xl border border-stone-100 p-4">
+      <div class="text-[10px] text-stone-400 font-bold mb-1">営業</div>
+      <div class="text-2xl font-black text-green-600 leading-none">
+        <span id="open-count">0</span>
+        <span class="text-[11px] text-stone-400 font-bold">件</span>
+      </div>
+    </div>
+
+    <div class="rounded-2xl border border-stone-100 p-4">
+      <div class="text-[10px] text-stone-400 font-bold mb-1">休み</div>
+      <div class="text-2xl font-black text-stone-700 leading-none">
+        <span id="close-count">0</span>
+        <span class="text-[11px] text-stone-400 font-bold">件</span>
+      </div>
+    </div>
+
+    <div class="rounded-2xl border border-stone-100 p-4">
+      <div class="text-[10px] text-stone-400 font-bold mb-1">基本情報入力</div>
+      <div class="text-2xl font-black text-amber-600 leading-none">
+        <span id="info-rate">0</span>
+        <span class="text-[11px] text-stone-400 font-bold">%</span>
+      </div>
+    </div>
+  </div>
+
+  <!-- Mini chart -->
+  <div class="grid grid-cols-2 gap-4 items-center">
+    <div class="chart-container" style="height:160px">
+      <canvas id="ratioChart"></canvas>
+    </div>
+    <div class="text-[11px] text-stone-500 leading-relaxed">
+      <div class="mb-2 font-bold text-stone-700">判定ルール</div>
+      <div>・「休」/「休み」を含む → 休み</div>
+      <div>・それ以外 → 営業</div>
+      <div class="mt-3 text-[10px] text-stone-400">
+        ※「基本情報入力率」は備考の TEL/ADDR/URL のうち、1つ以上入っている店舗の割合です。
+      </div>
+    </div>
+  </div>
+
+</div>
+
 
         <div class="bg-white rounded-[2rem] p-6 shadow-sm border border-stone-100">
           <h3 class="font-bold mb-4">カテゴリで絞り込む</h3>
@@ -300,9 +338,28 @@
       }
 
       emptyState.classList.toggle('hidden', total > 0);
-      document.getElementById('open-count').textContent = open;
-      document.getElementById('total-count').textContent = total;
-      updateStats(open, total - open);
+      // 曜日ラベル
+const curDayLabel = document.getElementById('cur-day-label');
+if (curDayLabel) curDayLabel.textContent = curDay;
+
+// 件数表示
+document.getElementById('open-count').textContent = open;
+document.getElementById('close-count').textContent = (total - open);
+
+// 基本情報入力率（TEL/ADDR/URLのどれか1つでも入っている店）
+let infoOk = 0;
+filtered.forEach(d => {
+  const hasTel = !!(d.info && d.info.tel);
+  const hasAddr = !!(d.info && d.info.address);
+  const hasUrl = !!(d.info && d.info.url);
+  if (hasTel || hasAddr || hasUrl) infoOk++;
+});
+const rate = total > 0 ? Math.round((infoOk / total) * 100) : 0;
+document.getElementById('info-rate').textContent = rate;
+
+// 小型グラフ更新
+updateStats(open, total - open);
+
     }
 
     async function loadCsv() {
