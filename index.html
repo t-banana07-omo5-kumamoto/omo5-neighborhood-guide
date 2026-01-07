@@ -96,9 +96,7 @@
           <div class="chart-container">
             <canvas id="ratioChart"></canvas>
           </div>
-          <!-- ※編集中メモ：営業判定ルール -->
           <div class="mt-3 text-[11px] text-stone-500">
-            <!-- ※ここは後で消す：営業扱い＝その曜日の欄が「休」/「休み」を含まないもの -->
             営業扱い：その曜日の欄が「休」/「休み」を含まないもの
           </div>
         </div>
@@ -106,7 +104,6 @@
         <div class="bg-white rounded-[2rem] p-6 shadow-sm border border-stone-100">
           <h3 class="font-bold mb-4">カテゴリで絞り込む</h3>
           <div id="cat-buttons" class="flex flex-wrap gap-2"></div>
-          <!-- ※編集中メモ：CSVにカテゴリ列がある想定 -->
           <div class="mt-3 text-[11px] text-stone-500">
             <!-- ※ここは後で消す：CSVの「カテゴリ」列をそのまま使用します（空欄は「未分類」扱い）。 -->
           </div>
@@ -142,31 +139,30 @@
   </footer>
 
   <script>
-    // =========================
-    // 1) CSV PATH
-    // =========================
-    // GitHub Pages で URL エンコード事故を避けるため、CSVは「data.csv」にリネーム推奨。
     const CSV_PATH = './data.csv';
 
-    // =========================
-    // 2) App State
-    // =========================
     let db = [];               // {name, category, schedule, note, info}
     let curDay = '月';
-    let curCat  = 'all';
+    let curCat = 'all';
     let myChart = null;
 
-    // =========================
-    // 3) Helpers
-    // =========================
     const DAY_KEYS = ['月','火','水','木','金','土','日'];
 
     function normalizeText(s) {
       return String(s ?? '')
-        .replace(/\\r/g, '')
-        .replace(/\\n/g, ' ')
+        .replace(/\r/g, '')
+        .replace(/\n/g, ' ')
         .replace(/[ 　]+/g, ' ')
         .trim();
+    }
+
+    function escapeHtml(s){
+      return String(s ?? '')
+        .replaceAll('&','&amp;')
+        .replaceAll('<','&lt;')
+        .replaceAll('>','&gt;')
+        .replaceAll('"','&quot;')
+        .replaceAll("'","&#39;");
     }
 
     function isClosed(status) {
@@ -179,81 +175,83 @@
       return s ? s.replace(/：/g, ':') : '—';
     }
 
-    // 備考欄から「電話/住所/URL」などを抽出（見つからない場合は空）
-    function parseBasicInfo(noteRaw) {
-      // =========================
-      // 備考欄：統一書式（厳格パース）
-      // -------------------------
-      // 1行1項目、必ず「LABEL: value」
-      // 例）
-      // TEL: 096-123-4567
-      // ADDR: 熊本県熊本市中央区〇〇
-      // HOURS: 11:00-20:00（L.O.19:30）
-      // URL（未入力ならGoogleマップ検索を生成）
-        if (info.url) {
-          infoLines.push(`<div class="text-[11px] text-stone-600"><span class="font-bold">URL</span>：<a class="underline" href="${info.url}" target="_blank" rel="noreferrer">${escapeHtml(info.url)}</a></div>`);
-        } else if (info.address) {
-          const gmap = googleMapSearchUrl(info.address);
-          infoLines.push(`<div class="text-[11px] text-stone-600"><span class="font-bold">MAP</span>：<a class="underline" href="${gmap}" target="_blank" rel="noreferrer">Googleマップで検索</a></div>`);
-        }
-        // NOTE（任意メモ）
-
-        if (info.note) infoLines.push(`<div class="text-[11px] text-stone-500 mt-2 leading-relaxed"><span class="font-bold">NOTE</span>：${escapeHtml(info.note)}</div>`);
-
-        // 想定外行（ラベルなし／未知ラベルなど）は「REST」として残す（編集中の保険）
-        const memo = info.rest ? `<div class="text-[11px] text-stone-500 mt-2 leading-relaxed"><span class="font-bold">REST</span>：${escapeHtml(info.rest)}</div>` : '';
-
-        const card = document.createElement('div');
-        card.className = `bg-white p-5 rounded-[2rem] shadow-sm border border-stone-100 flex justify-between items-start gap-4 transition-all ${closed ? 'opacity-40 grayscale' : 'hover:custom-shadow'}`;
-
-        card.innerHTML = `
-          <div class="flex-grow min-w-0">
-            <div class="flex items-center gap-2 mb-1">
-              ${badge}
-              <h4 class="font-bold text-sm text-stone-800 truncate">${escapeHtml(d.name)}</h4>
-            </div>
-
-            <div class="text-[10px] text-stone-400 mb-2">
-              <span class="font-bold">カテゴリ</span>：${escapeHtml(cat)}
-            </div>
-
-            <div class="space-y-1">
-              ${infoLines.join('') || `<div class="text-[11px] text-stone-500">（基本情報：備考欄に未入力／書式：TEL: / ADDR: / HOURS: / URL: / NOTE:）</div>`}
-            </div>
-
-            <!-- ※編集中メモ：ここは最終版で消す候補 -->
-            ${memo}
-          </div>
-
-          <div class="text-right flex-shrink-0">
-            <p class="text-xs font-black text-stone-800">${escapeHtml(stat)}</p>
-            <p class="text-[8px] text-stone-400 uppercase tracking-widest">Status</p>
-          </div>
-        `;
-        listContainer.appendChild(card);
-      });
-
-      emptyState.classList.toggle('hidden', total > 0);
-
-      document.getElementById('open-count').textContent = open;
-      document.getElementById('total-count').textContent = total;
-
-      updateStats(open, total - open);
-    }
-
-    function escapeHtml(s){
-      return String(s ?? '')
-        .replaceAll('&','&amp;')
-        .replaceAll('<','&lt;')
-        .replaceAll('>','&gt;')
-        .replaceAll('"','&quot;')
-        .replaceAll("'","&#39;");
-    }
-
     function googleMapSearchUrl(address) {
       if (!address) return '';
       const q = encodeURIComponent(address);
       return `https://www.google.com/maps/search/?api=1&query=${q}`;
+    }
+
+    // 備考欄：1行1項目「LABEL: value」
+    // TEL / ADDR / URL / NOTE / HOURS（任意）
+    function parseBasicInfo(noteRaw) {
+      const note = normalizeText(noteRaw);
+      const info = { tel:'', address:'', url:'', hours:'', note:'', rest:'' };
+      if (!note) return info;
+
+      // 元が改行区切りで入ってる想定。念のため " / " 区切りも分解。
+      const parts = noteRaw
+        ? String(noteRaw).split(/\r?\n/).flatMap(line => line.split(' / '))
+        : [];
+
+      const rest = [];
+
+      for (const p of parts) {
+        const line = normalizeText(p);
+        if (!line) continue;
+
+        const m = line.match(/^([A-Za-z]+)\s*:\s*(.+)$/);
+        if (!m) { rest.push(line); continue; }
+
+        const key = m[1].toUpperCase();
+        const val = normalizeText(m[2]);
+
+        if (key === 'TEL') info.tel = val;
+        else if (key === 'ADDR') info.address = val;
+        else if (key === 'URL') info.url = val;
+        else if (key === 'HOURS') info.hours = val;
+        else if (key === 'NOTE') info.note = val;
+        else rest.push(line);
+      }
+
+      info.rest = rest.join(' / ');
+      return info;
+    }
+
+    // ===== UI actions =====
+    function changeDay(day) {
+      curDay = day;
+      document.querySelectorAll('.day-btn').forEach(btn => {
+        btn.classList.toggle('day-active', btn.dataset.day === day);
+      });
+      render();
+    }
+
+    function setCat(cat) {
+      curCat = cat;
+      document.querySelectorAll('.cat-btn').forEach(btn => {
+        btn.classList.toggle('cat-active', btn.dataset.cat === cat);
+      });
+      render();
+    }
+
+    // ===== Rendering =====
+    function renderCatButtons() {
+      const box = document.getElementById('cat-buttons');
+      box.innerHTML = '';
+
+      const cats = Array.from(new Set(db.map(d => d.category))).sort((a,b)=>a.localeCompare(b,'ja'));
+      const allCats = ['all', ...cats];
+
+      for (const cat of allCats) {
+        const btn = document.createElement('button');
+        btn.className = 'cat-btn px-4 py-2 bg-stone-100 rounded-full text-[11px] font-bold transition';
+        btn.dataset.cat = cat;
+        btn.onclick = () => setCat(cat);
+        btn.textContent = (cat === 'all') ? 'すべて' : cat;
+
+        if (cat === 'all') btn.classList.add('cat-active');
+        box.appendChild(btn);
+      }
     }
 
     function updateStats(openCount, closeCount) {
@@ -275,113 +273,182 @@
       });
     }
 
-    // =========================
-    // 6) CSV Loader (曜日＆カテゴリ対応)
-    // =========================
+    function render() {
+      const listContainer = document.getElementById('shop-list');
+      const emptyState = document.getElementById('empty-state');
+
+      listContainer.innerHTML = '';
+
+      const filtered = db.filter(d => (curCat === 'all' || d.category === curCat));
+      let total = filtered.length;
+      let open = 0;
+
+      for (const d of filtered) {
+        const status = d.schedule[curDay] ?? '';
+        const closed = isClosed(status);
+        if (!closed) open++;
+
+        const badge = closed
+          ? `<span class="px-2 py-0.5 bg-red-100 text-red-700 text-[10px] font-bold rounded">休業</span>`
+          : `<span class="px-2 py-0.5 bg-green-100 text-green-700 text-[10px] font-bold rounded">営業</span>`;
+
+        const stat = statusLabel(status);
+        const info = d.info || { tel:'', address:'', url:'', hours:'', note:'', rest:'' };
+
+        const infoLines = [];
+
+        if (info.hours) {
+          infoLines.push(`<div class="text-[11px] text-stone-600"><span class="font-bold">HOURS</span>：${escapeHtml(info.hours)}</div>`);
+        }
+        if (info.tel) {
+          infoLines.push(`<div class="text-[11px] text-stone-600"><span class="font-bold">TEL</span>：${escapeHtml(info.tel)}</div>`);
+        }
+        if (info.address) {
+          infoLines.push(`<div class="text-[11px] text-stone-600"><span class="font-bold">ADDR</span>：${escapeHtml(info.address)}</div>`);
+        }
+
+        if (info.url) {
+          infoLines.push(`<div class="text-[11px] text-stone-600"><span class="font-bold">URL</span>：<a class="underline" href="${info.url}" target="_blank" rel="noreferrer">${escapeHtml(info.url)}</a></div>`);
+        } else if (info.address) {
+          const gmap = googleMapSearchUrl(info.address);
+          infoLines.push(`<div class="text-[11px] text-stone-600"><span class="font-bold">MAP</span>：<a class="underline" href="${gmap}" target="_blank" rel="noreferrer">Googleマップで検索</a></div>`);
+        }
+
+        if (info.note) {
+          infoLines.push(`<div class="text-[11px] text-stone-500 mt-2 leading-relaxed"><span class="font-bold">NOTE</span>：${escapeHtml(info.note)}</div>`);
+        }
+
+        const restMemo = info.rest
+          ? `<div class="text-[11px] text-stone-500 mt-2 leading-relaxed"><span class="font-bold">REST</span>：${escapeHtml(info.rest)}</div>`
+          : '';
+
+        const card = document.createElement('div');
+        card.className = `bg-white p-5 rounded-[2rem] shadow-sm border border-stone-100 flex justify-between items-start gap-4 transition-all ${closed ? 'opacity-40 grayscale' : 'hover:custom-shadow'}`;
+
+        card.innerHTML = `
+          <div class="flex-grow min-w-0">
+            <div class="flex items-center gap-2 mb-1">
+              ${badge}
+              <h4 class="font-bold text-sm text-stone-800 truncate">${escapeHtml(d.name)}</h4>
+            </div>
+
+            <div class="text-[10px] text-stone-400 mb-2">
+              <span class="font-bold">カテゴリ</span>：${escapeHtml(d.category)}
+            </div>
+
+            <div class="space-y-1">
+              ${infoLines.join('') || `<div class="text-[11px] text-stone-500">（基本情報：備考欄に未入力／書式：TEL: / ADDR: / HOURS: / URL: / NOTE:）</div>`}
+            </div>
+
+            <!-- ※編集中メモ：ここは最終版で消す候補 -->
+            ${restMemo}
+          </div>
+
+          <div class="text-right flex-shrink-0">
+            <p class="text-xs font-black text-stone-800">${escapeHtml(stat)}</p>
+            <p class="text-[8px] text-stone-400 uppercase tracking-widest">Status</p>
+          </div>
+        `;
+        listContainer.appendChild(card);
+      }
+
+      emptyState.classList.toggle('hidden', total > 0);
+
+      document.getElementById('open-count').textContent = open;
+      document.getElementById('total-count').textContent = total;
+
+      updateStats(open, total - open);
+    }
+
+    // ===== CSV Loader =====
     async function loadCsv() {
       const msg = document.getElementById('load-msg');
       const err = document.getElementById('error-state');
 
-      // 読み込み中表示（成功で消す／失敗でエラー表示）
       msg.classList.remove('hidden');
       msg.textContent = 'データを読み込んでいます…';
       err.classList.add('hidden');
 
       try {
         const res = await fetch(CSV_PATH, { cache: 'no-store' });
-        if (!res.ok) throw new Error('fetch failed');
-        const text = await res.text();
+        if (!res.ok) throw new Error('fetch failed: ' + res.status);
 
+        const text = await res.text();
         const parsed = Papa.parse(text, { skipEmptyLines: true });
 
-        // 行を正規化
         const rows = (parsed.data || [])
           .map(r => (r || []).map(c => normalizeText(c)))
           .filter(r => r.some(c => c !== ''));
 
-        // ヘッダー行を探す（"店名" を含み、曜日っぽい列も含む）
-        const headerIdx = rows.findIndex(r => r.includes('店名') && DAY_KEYS.some(d => r.includes(d)));
-        const header = headerIdx >= 0 ? rows[headerIdx] : [];
-        const start = headerIdx >= 0 ? headerIdx + 1 : 0;
+        const headerIdx = rows.findIndex(r => r.includes('店名'));
+        if (headerIdx < 0) throw new Error('header row not found (店名)');
 
-        // 列インデックス（無ければフォールバック）
-        const idxName = header.indexOf('店名') >= 0 ? header.indexOf('店名') : 2;
-        const idxCat  = header.indexOf('カテゴリ') >= 0 ? header.indexOf('カテゴリ') : 3;
+        const header = rows[headerIdx];
+        const start = headerIdx + 1;
+
+        const idxName = header.indexOf('店名');
+        const idxCat  = header.indexOf('カテゴリ');
 
         const idxDay = {};
-        DAY_KEYS.forEach(d => {
-          const i = header.indexOf(d);
-          idxDay[d] = (i >= 0) ? i : null;
-        });
+        for (const d of DAY_KEYS) idxDay[d] = header.indexOf(d);
 
-        // 備考列（見つからなければ最後）
-        const idxNote = header.indexOf('備考') >= 0 ? header.indexOf('備考') : (header.length ? header.length - 1 : 11);
+        const idxNote = header.indexOf('備考') >= 0 ? header.indexOf('備考') : (header.length - 1);
 
         const out = [];
 
         for (let i = start; i < rows.length; i++) {
-          const r = rows[i] || [];
+          const r = rows[i];
+          if (!r) continue;
 
-          const rawName = r[idxName] ?? '';
-          if (!rawName || rawName === '店名') continue;
+          const name = normalizeText(r[idxName] ?? '');
+          if (!name) continue;
 
-          const name = normalizeText(rawName);
           const category = normalizeText(r[idxCat] ?? '') || '未分類';
 
           const schedule = {};
-          DAY_KEYS.forEach(d => {
+          for (const d of DAY_KEYS) {
             const col = idxDay[d];
-            schedule[d] = (col === null) ? '' : (r[col] ?? '');
-          });
+            schedule[d] = (col >= 0) ? (r[col] ?? '') : '';
+          }
 
-          // 備考
           const note = normalizeText(r[idxNote] ?? '');
-
-          out.push({
-            name,
-            category,
-            schedule,
-            note,
-            info: parseBasicInfo(note),
-          });
+          out.push({ name, category, schedule, note, info: parseBasicInfo(note) });
         }
 
-        // 同名重複を統合（空欄だけ埋める）
+        // 同名重複統合（空欄のみ埋める）
         const merged = new Map();
-        out.forEach(item => {
+        for (const item of out) {
           const key = item.name;
           if (!merged.has(key)) {
             merged.set(key, item);
-            return;
+            continue;
           }
           const cur = merged.get(key);
-          // カテゴリ優先：既存が未分類なら上書き
+
           if ((cur.category === '未分類') && item.category && item.category !== '未分類') cur.category = item.category;
-          // 曜日：空欄のみ埋める
-          DAY_KEYS.forEach(d => {
+
+          for (const d of DAY_KEYS) {
             if (!cur.schedule[d] && item.schedule[d]) cur.schedule[d] = item.schedule[d];
-          });
-          // 備考：空欄のみ埋める
+          }
+
           if (!cur.note && item.note) {
             cur.note = item.note;
             cur.info = parseBasicInfo(item.note);
           }
-        });
+        }
 
-        db = Array.from(merged.values())
-          .filter(d => d.name)
-          .sort((a,b) => a.name.localeCompare(b.name, 'ja'));
+        db = Array.from(merged.values()).sort((a,b)=>a.name.localeCompare(b.name,'ja'));
 
-        // 成功：読み込み表示を消す
         msg.textContent = '';
         msg.classList.add('hidden');
         err.classList.add('hidden');
 
         renderCatButtons();
-        // 初期ハイライト
+
         document.querySelectorAll('.day-btn').forEach(btn => {
           btn.classList.toggle('day-active', btn.dataset.day === curDay);
         });
+
         render();
 
       } catch (e) {
@@ -393,7 +460,6 @@
     }
 
     window.onload = () => {
-      // 初期ハイライト
       document.querySelectorAll('.day-btn').forEach(btn => {
         btn.classList.toggle('day-active', btn.dataset.day === curDay);
       });
