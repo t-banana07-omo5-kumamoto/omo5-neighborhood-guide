@@ -1,8 +1,12 @@
 # omo5-neighborhood-guide
 # OMO5 Neighborhood Guide
 
-OMO5熊本 周辺施設・店舗の案内ページ用データとWeb表示を管理するリポジトリです。  
-GitHub Pages を使って、CSVデータから自動表示される案内ページを公開しています。
+OMO5 Kumamoto neighborhood guide published via GitHub Pages.
+
+This repository uses a CSV file as the single source of truth,
+allowing multiple editors to update data safely and consistently.
+
+
 
 ---
 
@@ -69,6 +73,16 @@ omo5-neighborhood-guide/
 - 特徴（例：お城ビュー／ご近所バー対象 など）
 
 ※ 表示や検索に使用されます
+
+## 📐 表記ルールについて
+
+店名・カテゴリ・備考の書き方には  
+統一ルールがあります。
+
+編集前に、必ず以下を確認してください。
+
+👉 **[STYLEGUIDE.md（表記ルール）はこちら](./STYLEGUIDE.md)**
+
 
 ---
 
