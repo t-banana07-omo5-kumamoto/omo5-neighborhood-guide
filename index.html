@@ -24,6 +24,13 @@
     .custom-shadow{box-shadow:0 10px 15px -3px rgba(0,0,0,0.05),0 4px 6px -2px rgba(0,0,0,0.02);}
     .no-scrollbar::-webkit-scrollbar{display:none;}
     .no-scrollbar{-ms-overflow-style:none;scrollbar-width:none;}
+
+    /* いま営業中ボタンのON表現 */
+    .now-active{
+      background-color:#0f766e !important;
+      color:white !important;
+      border-color:rgba(15,118,110,0.35) !important;
+    }
   </style>
 </head>
 
@@ -66,6 +73,23 @@
               <span class="w-2 h-5 bg-amber-500 rounded-full"></span>
               <span id="cur-day-label">月</span>曜日のサマリー
             </h3>
+
+            <div class="flex items-center gap-3">
+              <!-- 追加：今日ボタン -->
+              <button
+                id="today-btn"
+                onclick="goToday()"
+                class="px-3 py-2 rounded-full text-[10px] font-black border border-stone-200 bg-stone-100 hover:bg-stone-200 transition whitespace-nowrap"
+                title="端末の今日の曜日へ移動"
+              >
+                今日
+              </button>
+
+              <!-- 現在時刻表示 -->
+              <div class="text-[10px] text-stone-400 font-bold">
+                NOW: <span id="now-clock">--:--</span>
+              </div>
+            </div>
           </div>
           
           <div class="grid grid-cols-2 sm:grid-cols-4 gap-3">
@@ -118,13 +142,27 @@
             class="w-full pl-4 pr-10 py-3 rounded-2xl border border-stone-200 bg-stone-50 text-sm outline-none focus:ring-2 focus:ring-amber-200 transition-all"
             oninput="setQuery(this.value)"
           />
-          <button onclick="clearQuery()" class="absolute right-3 top-1/2 -translate-y-1/2 text-stone-300 hover:text-stone-500">
+          <button onclick="clearQuery()" class="absolute right-3 top-1/2 -translate-y-1/2 text-stone-300 hover:text-stone-500" aria-label="clear">
             <svg xmlns="http://www.w3.org/2000/svg" class="h-5 w-5" viewBox="0 0 20 20" fill="currentColor"><path fill-rule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zM8.707 7.293a1 1 0 00-1.414 1.414L8.586 10l-1.293 1.293a1 1 0 101.414 1.414L10 11.414l1.293 1.293a1 1 0 001.414-1.414L11.414 10l1.293-1.293a1 1 0 00-1.414-1.414L10 8.586 8.707 7.293z" clip-rule="evenodd" /></svg>
           </button>
         </div>
 
-        <div id="cat-buttons" class="flex flex-wrap gap-2 overflow-y-auto no-scrollbar max-h-32">
+        <!-- いま営業中 -->
+        <div class="flex items-center gap-2 mb-4">
+          <button
+            id="now-filter-btn"
+            onclick="toggleNowOnly()"
+            class="px-4 py-2 bg-stone-100 rounded-full text-[10px] font-black border border-stone-200 transition whitespace-nowrap"
+            title="現在時刻で「いま営業中」だけ表示"
+          >
+            いま営業中
+          </button>
+          <div class="text-[10px] text-stone-400 font-bold">
+            選択曜日の <span class="text-stone-700">現在時刻</span> で判定
           </div>
+        </div>
+
+        <div id="cat-buttons" class="flex flex-wrap gap-2 overflow-y-auto no-scrollbar max-h-32"></div>
       </div>
     </div>
 
@@ -152,6 +190,7 @@
     let curDay = '月';
     let curCat  = 'all';
     let curQuery = '';
+    let curNowOnly = false; // いま営業中のみ
     let myChart = null;
     const DAY_KEYS = ['月','火','水','木','金','土','日'];
 
@@ -185,161 +224,15 @@
       if (!m) return false;
       return parseInt(m[3], 10) >= 21;
     }
-    function parseBasicInfo(noteRaw) {
-      const note = normalizeText(noteRaw);
-      const info = { tel:'', address:'', hours:'', url:'', note:'', rest:'' };
-      if (!note) return info;
-      const lines = note.split(/\s*\/\s*|\s*\n\s*/).map(l => normalizeText(l)).filter(Boolean);
-      for (const line of lines) {
-        const m = line.match(/^([A-Z]+)\s*:\s*(.+)$/);
-        if (!m) { info.rest += (info.rest ? ' / ' : '') + line; continue; }
-        const key = m[1].toUpperCase();
-        const val = normalizeText(m[2]);
-        if (key === 'TEL') info.tel = val;
-        else if (key === 'ADDR') info.address = val;
-        else if (key === 'HOURS') info.hours = val;
-        else if (key === 'URL') info.url = val;
-        else if (key === 'NOTE') info.note = val;
-        else info.rest += (info.rest ? ' / ' : '') + line;
-      }
-      return info;
+
+    /* 現在時刻（分） */
+    function nowMinutes(){
+      const d = new Date();
+      return d.getHours() * 60 + d.getMinutes();
     }
-
-    function changeDay(day) {
-      curDay = day;
-      document.querySelectorAll('.day-btn').forEach(btn => btn.classList.toggle('day-active', btn.dataset.day === day));
-      render();
-    }
-    function setCat(cat) {
-      curCat = cat;
-      document.querySelectorAll('.cat-btn').forEach(btn => btn.classList.toggle('cat-active', btn.dataset.cat === cat));
-      render();
-    }
-
-    function renderCatButtons() {
-      const box = document.getElementById('cat-buttons');
-      box.innerHTML = '';
-      const cats = Array.from(new Set(db.map(d => d.category))).sort((a,b)=>a.localeCompare(b,'ja'));
-      ['all', ...cats].forEach(cat => {
-        const btn = document.createElement('button');
-        btn.className = 'cat-btn px-4 py-2 bg-stone-100 rounded-full text-[10px] font-bold transition whitespace-nowrap';
-        btn.dataset.cat = cat;
-        btn.onclick = () => setCat(cat);
-        btn.textContent = (cat === 'all') ? 'すべて' : cat;
-        if (cat === 'all') btn.classList.add('cat-active');
-        box.appendChild(btn);
-      });
-    }
-
-    function updateStats(open, total) {
-      const close = total - open;
-      const percent = total > 0 ? Math.round((open / total) * 100) : 0;
-      document.getElementById('open-percent').textContent = percent + '%';
-      
-      const ctx = document.getElementById('ratioChart').getContext('2d');
-      if (myChart) myChart.destroy();
-      myChart = new Chart(ctx, {
-        type: 'doughnut',
-        data: { datasets: [{ data: [open, close], backgroundColor: ['#10b981', '#e5e7eb'], borderWeight: 0, hoverOffset: 0 }] },
-        options: { cutout: '82%', plugins: { tooltip: { enabled: false }, legend: { display: false } }, events: [] }
-      });
-    }
-
-    function render() {
-      const listContainer = document.getElementById('shop-list');
-      const emptyState = document.getElementById('empty-state');
-      listContainer.innerHTML = '';
-
-      const q = normalizeText(curQuery).toLowerCase();
-      const filtered = db.filter(d => {
-        const okCat = (curCat === 'all' || d.category === curCat);
-        const okQuery = (!q || (d.name || '').toLowerCase().includes(q));
-        return okCat && okQuery;
-      });
-
-      let openCount = 0;
-      let nightCount = 0;
-
-      filtered.forEach(d => {
-        const status = d.schedule[curDay] ?? '';
-        const closed = isClosed(status);
-        if (!closed) {
-          openCount++;
-          if(isNightOpen(status)) nightCount++;
-        }
-
-        const info = d.info || {};
-        const card = document.createElement('div');
-        card.className = `bg-white p-5 rounded-[2rem] border border-stone-100 flex justify-between items-start gap-4 transition-all ${closed ? 'opacity-40 grayscale bg-stone-50' : 'hover:custom-shadow shadow-sm'}`;
-
-        card.innerHTML = `
-          <div class="flex-grow min-w-0">
-            <div class="flex items-center gap-2 mb-2">
-              <span class="px-2 py-0.5 ${closed ? 'bg-stone-200 text-stone-600' : 'bg-green-100 text-green-700'} text-[9px] font-bold rounded uppercase">${closed ? 'Closed' : 'Open'}</span>
-              <h4 class="font-bold text-sm text-stone-800 truncate">${escapeHtml(d.name)}</h4>
-            </div>
-            <div class="text-[10px] text-amber-600 font-bold mb-3"># ${escapeHtml(d.category)}</div>
-            <div class="space-y-1 text-[11px] text-stone-500">
-              ${info.hours ? `<div><span class="font-bold text-stone-400 mr-1">HOURS:</span>${escapeHtml(info.hours)}</div>` : ''}
-              ${info.tel ? `<div><span class="font-bold text-stone-400 mr-1">TEL:</span>${escapeHtml(info.tel)}</div>` : ''}
-              ${info.url ? `<div class="pt-1"><a href="${escapeHtml(info.url)}" target="_blank" class="text-amber-600 underline font-bold">公式リンク</a></div>` : ''}
-            </div>
-          </div>
-          <div class="text-right flex-shrink-0">
-            <p class="text-sm font-black text-stone-800">${escapeHtml(statusLabel(status))}</p>
-            <p class="text-[8px] text-stone-400 uppercase tracking-tighter">Current Status</p>
-          </div>
-        `;
-        listContainer.appendChild(card);
-      });
-
-      emptyState.classList.toggle('hidden', filtered.length > 0);
-      document.getElementById('cur-day-label').textContent = curDay;
-      document.getElementById('open-count').textContent = openCount;
-      document.getElementById('close-count').textContent = filtered.length - openCount;
-      document.getElementById('shown-count').textContent = filtered.length;
-      document.getElementById('all-count').textContent = db.length;
-      document.getElementById('night-rate').textContent = filtered.length > 0 ? Math.round((nightCount / filtered.length) * 100) : 0;
-      document.getElementById('night-count').textContent = nightCount;
-      
-      updateStats(openCount, filtered.length);
-    }
-
-    async function loadCsv() {
-      const msg = document.getElementById('load-msg');
-      const err = document.getElementById('error-state');
-      msg.classList.remove('hidden');
-
-      try {
-        const res = await fetch(CSV_PATH, { cache: 'no-store' });
-        if (!res.ok) throw new Error();
-        const text = await res.text();
-        const parsed = Papa.parse(text, { skipEmptyLines: true });
-        const rows = parsed.data.map(r => r.map(c => normalizeText(c))).filter(r => r.some(c => c !== ''));
-
-        const headerIdx = rows.findIndex(r => r.includes('店名'));
-        const header = rows[headerIdx];
-        const idxName = header.indexOf('店名');
-        const idxCat  = header.indexOf('カテゴリ');
-        const idxNote = header.indexOf('備考') >= 0 ? header.indexOf('備考') : header.length - 1;
-        const idxDay = {}; DAY_KEYS.forEach(d => idxDay[d] = header.indexOf(d));
-
-        db = rows.slice(headerIdx + 1).map(r => {
-          const note = normalizeText(r[idxNote]);
-          const schedule = {}; DAY_KEYS.forEach(d => schedule[d] = r[idxDay[d]]);
-          return { name: r[idxName], category: r[idxCat] || '未分類', schedule, note, info: parseBasicInfo(note) };
-        }).filter(d => d.name).sort((a,b)=>a.name.localeCompare(b.name,'ja'));
-
-        msg.classList.add('hidden');
-        renderCatButtons();
-        render();
-      } catch (e) {
-        err.classList.remove('hidden');
-        console.error(e);
-      }
-    }
-
-    window.onload = loadCsv;
-  </script>
-</body>
-</html>
+    function pad2(n){ return String(n).padStart(2,'0'); }
+    function updateNowClock(){
+      const d = new Date();
+      const txt = `${pad2(d.getHours())}:${pad2(d.getMinutes())}`;
+      const el = document.getElementById('now-clock');
+      if (el) el.textContent =
