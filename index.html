@@ -21,16 +21,12 @@
     .chart-container{position:relative;width:120px;height:120px;margin:auto;}
     .day-active{background-color:var(--omo-red)!important;color:white!important;transform:scale(1.05);}
     .cat-active{background-color:var(--omo-gold)!important;color:white!important;}
+    .tag-active{background-color:#0f766e!important;color:white!important;border-color:rgba(15,118,110,.35)!important;}
+    .mode-active{background-color:#111827!important;color:white!important;border-color:rgba(17,24,39,.35)!important;}
     .custom-shadow{box-shadow:0 10px 15px -3px rgba(0,0,0,0.05),0 4px 6px -2px rgba(0,0,0,0.02);}
     .no-scrollbar::-webkit-scrollbar{display:none;}
     .no-scrollbar{-ms-overflow-style:none;scrollbar-width:none;}
-
-    /* いま営業中ボタンのON表現 */
-    .now-active{
-      background-color:#0f766e !important;
-      color:white !important;
-      border-color:rgba(15,118,110,0.35) !important;
-    }
+    .now-active{background-color:#0f766e !important;color:white !important;border-color:rgba(15,118,110,0.35) !important;}
   </style>
 </head>
 
@@ -65,7 +61,6 @@
     </div>
 
     <div class="grid grid-cols-1 lg:grid-cols-12 gap-6 mb-8 items-stretch">
-      
       <div class="lg:col-span-8 bg-white rounded-[2.5rem] p-6 shadow-sm border border-stone-100 flex flex-col md:flex-row gap-6">
         <div class="flex-grow">
           <div class="flex items-center justify-between mb-4">
@@ -73,25 +68,15 @@
               <span class="w-2 h-5 bg-amber-500 rounded-full"></span>
               <span id="cur-day-label">月</span>曜日のサマリー
             </h3>
-
             <div class="flex items-center gap-3">
-              <!-- 追加：今日ボタン -->
-              <button
-                id="today-btn"
-                onclick="goToday()"
-                class="px-3 py-2 rounded-full text-[10px] font-black border border-stone-200 bg-stone-100 hover:bg-stone-200 transition whitespace-nowrap"
-                title="端末の今日の曜日へ移動"
-              >
+              <button id="today-btn" onclick="goToday()"
+                class="px-3 py-2 rounded-full text-[10px] font-black border border-stone-200 bg-stone-100 hover:bg-stone-200 transition whitespace-nowrap">
                 今日
               </button>
-
-              <!-- 現在時刻表示 -->
-              <div class="text-[10px] text-stone-400 font-bold">
-                NOW: <span id="now-clock">--:--</span>
-              </div>
+              <div class="text-[10px] text-stone-400 font-bold">NOW: <span id="now-clock">--:--</span></div>
             </div>
           </div>
-          
+
           <div class="grid grid-cols-2 sm:grid-cols-4 gap-3">
             <div class="bg-stone-50 rounded-2xl p-4 border border-stone-100">
               <div class="text-[10px] text-stone-400 font-bold mb-1 uppercase tracking-wider">Open</div>
@@ -133,28 +118,19 @@
           <span class="w-2 h-5 bg-stone-800 rounded-full"></span>
           絞り込み検索
         </h3>
-        
+
         <div class="relative mb-4">
-          <input
-            id="search-input"
-            type="text"
-            placeholder="店名で検索..."
+          <input id="search-input" type="text" placeholder="店名で検索..."
             class="w-full pl-4 pr-10 py-3 rounded-2xl border border-stone-200 bg-stone-50 text-sm outline-none focus:ring-2 focus:ring-amber-200 transition-all"
-            oninput="setQuery(this.value)"
-          />
+            oninput="setQuery(this.value)" />
           <button onclick="clearQuery()" class="absolute right-3 top-1/2 -translate-y-1/2 text-stone-300 hover:text-stone-500" aria-label="clear">
             <svg xmlns="http://www.w3.org/2000/svg" class="h-5 w-5" viewBox="0 0 20 20" fill="currentColor"><path fill-rule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zM8.707 7.293a1 1 0 00-1.414 1.414L8.586 10l-1.293 1.293a1 1 0 101.414 1.414L10 11.414l1.293 1.293a1 1 0 001.414-1.414L11.414 10l1.293-1.293a1 1 0 00-1.414-1.414L10 8.586 8.707 7.293z" clip-rule="evenodd" /></svg>
           </button>
         </div>
 
-        <!-- いま営業中 -->
         <div class="flex items-center gap-2 mb-4">
-          <button
-            id="now-filter-btn"
-            onclick="toggleNowOnly()"
-            class="px-4 py-2 bg-stone-100 rounded-full text-[10px] font-black border border-stone-200 transition whitespace-nowrap"
-            title="現在時刻で「いま営業中」だけ表示"
-          >
+          <button id="now-filter-btn" onclick="toggleNowOnly()"
+            class="px-4 py-2 bg-stone-100 rounded-full text-[10px] font-black border border-stone-200 transition whitespace-nowrap">
             いま営業中
           </button>
           <div class="text-[10px] text-stone-400 font-bold">
@@ -162,7 +138,44 @@
           </div>
         </div>
 
-        <div id="cat-buttons" class="flex flex-wrap gap-2 overflow-y-auto no-scrollbar max-h-32"></div>
+        <div class="mb-3">
+          <div class="text-[10px] font-black text-stone-700 mb-2">カテゴリ</div>
+          <div id="cat-buttons" class="flex flex-wrap gap-2 overflow-y-auto no-scrollbar max-h-28"></div>
+        </div>
+
+        <div>
+          <div class="flex items-center justify-between mb-2">
+            <div class="text-[10px] font-black text-stone-700">タグ</div>
+            <div class="flex items-center gap-2">
+              <div class="text-[10px] text-stone-500 font-bold">
+                選択: <span id="tag-selected-count">0</span>
+              </div>
+              <button onclick="clearTags()"
+                class="px-3 py-1 rounded-full text-[10px] font-black border border-stone-200 bg-stone-100 hover:bg-stone-200 transition">
+                解除
+              </button>
+            </div>
+          </div>
+
+          <div class="flex items-center gap-2 mb-3">
+            <button id="tag-mode-or" onclick="setTagMode('OR')"
+              class="px-4 py-2 rounded-full text-[10px] font-black border border-stone-200 bg-stone-100 transition whitespace-nowrap">
+              OR
+            </button>
+            <button id="tag-mode-and" onclick="setTagMode('AND')"
+              class="px-4 py-2 rounded-full text-[10px] font-black border border-stone-200 bg-stone-100 transition whitespace-nowrap">
+              AND
+            </button>
+            <div class="text-[10px] text-stone-400 font-bold">
+              OR=どれか / AND=全部
+            </div>
+          </div>
+
+          <div id="tag-buttons" class="flex flex-wrap gap-2 overflow-y-auto no-scrollbar max-h-32"></div>
+          <div class="mt-2 text-[10px] text-stone-400">
+            ※ TAG 行の <span class="font-bold">#タグ</span> から自動生成
+          </div>
+        </div>
       </div>
     </div>
 
@@ -171,8 +184,10 @@
     <div id="empty-state" class="hidden py-20 text-center bg-stone-100 rounded-[2.5rem] border-2 border-dashed border-stone-200">
       <p class="text-stone-400 text-sm">該当する店舗がありません。</p>
     </div>
-    <div id="error-state" class="hidden py-14 text-center bg-red-50 rounded-[2.5rem] border border-red-200">
-      <p class="text-red-700 font-bold">CSVの読み込みに失敗しました。</p>
+
+    <div id="error-state" class="hidden py-10 text-center bg-red-50 rounded-[2.5rem] border border-red-200 mb-10">
+      <p class="text-red-700 font-black mb-2">CSVの読み込みに失敗しました。</p>
+      <p id="error-detail" class="text-red-700/80 text-[11px] px-6 break-words"></p>
     </div>
 
   </main>
@@ -185,54 +200,431 @@
   </footer>
 
   <script>
-    const CSV_PATH = './data.csv';
+    // index.html と同階層に data.csv
+    const CSV_PATH = 'data.csv';
+
     let db = [];
     let curDay = '月';
     let curCat  = 'all';
     let curQuery = '';
-    let curNowOnly = false; // いま営業中のみ
+    let curNowOnly = false;
+
+    // ★複数タグ選択
+    let selectedTags = new Set(); // '#ラーメン' など
+    let tagMode = 'OR'; // 'OR' or 'AND'
+
     let myChart = null;
     const DAY_KEYS = ['月','火','水','木','金','土','日'];
 
     function normalizeText(s) {
-      return String(s ?? '').replace(/^\uFEFF/, '').replace(/\r/g, '').replace(/\n/g, ' ').replace(/[ 　]+/g, ' ').trim();
-    }
-    function setQuery(q){ curQuery = normalizeText(q); render(); }
-    function clearQuery(){
-      curQuery = '';
-      const inp = document.getElementById('search-input');
-      if (inp) inp.value = '';
-      render();
-    }
-    function escapeHtml(s){
-      return String(s ?? '').replaceAll('&','&amp;').replaceAll('<','&lt;').replaceAll('>','&gt;').replaceAll('"','&quot;').replaceAll("'","&#039;");
-    }
-    function isClosed(status) {
-      const s = normalizeText(status);
-      return /休(み)?/.test(s);
-    }
-    function statusLabel(status) {
-      const s = normalizeText(status);
-      return s ? s.replace(/：/g, ':') : '—';
+      return String(s ?? '').replace(/^\uFEFF/, '').replace(/\r/g, '').trim();
     }
     function toHalfWidth(s){
-      return String(s ?? '').replace(/[０-９]/g, ch => String.fromCharCode(ch.charCodeAt(0) - 0xFEE0)).replace(/：/g, ':');
+      return String(s ?? '')
+        .replace(/[０-９]/g, ch => String.fromCharCode(ch.charCodeAt(0) - 0xFEE0))
+        .replace(/：/g, ':');
     }
+    function escapeHtml(s){
+      return String(s ?? '')
+        .replaceAll('&','&amp;')
+        .replaceAll('<','&lt;')
+        .replaceAll('>','&gt;')
+        .replaceAll('"','&quot;')
+        .replaceAll("'","&#039;");
+    }
+
+    function setQuery(q){ curQuery = normalizeText(q); render(); }
+    function clearQuery(){ curQuery=''; const i=document.getElementById('search-input'); if(i) i.value=''; render(); }
+
+    function isClosed(status){ return /休(み)?/.test(normalizeText(status)); }
+    function statusLabel(status){ const s=normalizeText(status); return s ? s.replace(/：/g, ':') : '—'; }
+
     function isNightOpen(status){
       const s = toHalfWidth(normalizeText(status));
       const m = s.match(/(\d{1,2}):(\d{2})\s*-\s*(\d{1,2}):(\d{2})/);
       if (!m) return false;
-      return parseInt(m[3], 10) >= 21;
+      return parseInt(m[3],10) >= 21;
     }
 
-    /* 現在時刻（分） */
-    function nowMinutes(){
-      const d = new Date();
-      return d.getHours() * 60 + d.getMinutes();
-    }
+    function nowMinutes(){ const d=new Date(); return d.getHours()*60 + d.getMinutes(); }
     function pad2(n){ return String(n).padStart(2,'0'); }
     function updateNowClock(){
-      const d = new Date();
-      const txt = `${pad2(d.getHours())}:${pad2(d.getMinutes())}`;
-      const el = document.getElementById('now-clock');
-      if (el) el.textContent =
+      const d=new Date();
+      const el=document.getElementById('now-clock');
+      if(el) el.textContent = `${pad2(d.getHours())}:${pad2(d.getMinutes())}`;
+    }
+
+    function extractRanges(statusRaw){
+      const s = toHalfWidth(normalizeText(statusRaw)).toLowerCase();
+      const ranges = [];
+      const re = /(\d{1,2}):(\d{2})\s*-\s*(\d{1,2}):(\d{2})/g;
+      let m;
+      while((m=re.exec(s))!==null){
+        const sh=+m[1], sm=+m[2], eh=+m[3], em=+m[4];
+        if([sh,sm,eh,em].some(Number.isNaN)) continue;
+        ranges.push([sh*60+sm, eh*60+em]);
+      }
+      return { s, ranges };
+    }
+
+    function isOpenNowByStatus(statusRaw, nowMin){
+      const status = normalizeText(statusRaw);
+      if(!status) return false;
+      if(isClosed(status)) return false;
+
+      const { s, ranges } = extractRanges(status);
+      if(/24\s*h|24時間|終日|all\s*day/.test(s)) return true;
+      if(ranges.length===0) return false;
+
+      for(const [start,end] of ranges){
+        if(start===end) continue;
+        if(end>start){
+          if(nowMin>=start && nowMin<end) return true;
+        }else{
+          if(nowMin>=start || nowMin<end) return true;
+        }
+      }
+      return false;
+    }
+
+    function goToday(){
+      const jsDay=new Date().getDay();
+      const map=['日','月','火','水','木','金','土'];
+      changeDay(map[jsDay]);
+    }
+
+    function changeDay(day){
+      curDay=day;
+      document.querySelectorAll('.day-btn').forEach(btn => btn.classList.toggle('day-active', btn.dataset.day===day));
+      render();
+    }
+
+    function setCat(cat){
+      curCat=cat;
+      document.querySelectorAll('.cat-btn').forEach(btn => btn.classList.toggle('cat-active', btn.dataset.cat===cat));
+      render();
+    }
+
+    function toggleNowOnly(){
+      curNowOnly=!curNowOnly;
+      const btn=document.getElementById('now-filter-btn');
+      if(btn) btn.classList.toggle('now-active', curNowOnly);
+      render();
+    }
+
+    // ★タグモード
+    function setTagMode(mode){
+      tagMode = (mode === 'AND') ? 'AND' : 'OR';
+      const orBtn = document.getElementById('tag-mode-or');
+      const andBtn = document.getElementById('tag-mode-and');
+      if(orBtn)  orBtn.classList.toggle('mode-active', tagMode === 'OR');
+      if(andBtn) andBtn.classList.toggle('mode-active', tagMode === 'AND');
+      render();
+    }
+
+    // ★タグ選択（複数）
+    function toggleTag(tag){
+      if(selectedTags.has(tag)) selectedTags.delete(tag);
+      else selectedTags.add(tag);
+
+      // ボタン表示更新
+      document.querySelectorAll('.tag-btn').forEach(btn => {
+        const t = btn.dataset.tag;
+        btn.classList.toggle('tag-active', selectedTags.has(t));
+      });
+
+      updateTagSelectedCount();
+      render();
+    }
+
+    function clearTags(){
+      selectedTags.clear();
+      document.querySelectorAll('.tag-btn').forEach(btn => btn.classList.remove('tag-active'));
+      updateTagSelectedCount();
+      render();
+    }
+
+    function updateTagSelectedCount(){
+      const el = document.getElementById('tag-selected-count');
+      if(el) el.textContent = String(selectedTags.size);
+    }
+
+    // ★ TAG: 行の #タグ を抽出
+    function extractTagsFromValue(tagVal){
+      const raw = String(tagVal ?? '').trim();
+      if(!raw) return [];
+
+      const matches = raw.match(/#[^\s#]+/g) || [];
+      const tags = matches.map(t => t.replace(/\u3000/g,' ').trim()).filter(Boolean);
+      return Array.from(new Set(tags));
+    }
+
+    function parseBasicInfo(noteRaw){
+      const note = String(noteRaw ?? '');
+      const info = { tel:'', address:'', hours:'', url:'', note:'', tags:[], rest:'' };
+      if(!note) return info;
+
+      const lines = note.split(/\n+/).map(v => v.trim()).filter(Boolean);
+      for(const line of lines){
+        const m = line.match(/^([A-Z]+)\s*:\s*(.*)$/);
+        if(!m){ info.rest += (info.rest ? ' / ' : '') + line; continue; }
+        const key=m[1].toUpperCase();
+        const val=(m[2]||'').trim();
+
+        if(key==='TEL') info.tel=val;
+        else if(key==='ADDR') info.address=val;
+        else if(key==='HOURS') info.hours=val;
+        else if(key==='URL') info.url=val;
+        else if(key==='NOTE') info.note=val;
+        else if(key==='TAG') info.tags = extractTagsFromValue(val);
+        else info.rest += (info.rest ? ' / ' : '') + `${key}:${val}`;
+      }
+      return info;
+    }
+
+    function renderCatButtons(){
+      const box=document.getElementById('cat-buttons');
+      box.innerHTML='';
+      const cats=Array.from(new Set(db.map(d=>d.category))).sort((a,b)=>a.localeCompare(b,'ja'));
+      ['all', ...cats].forEach(cat=>{
+        const btn=document.createElement('button');
+        btn.className='cat-btn px-4 py-2 bg-stone-100 rounded-full text-[10px] font-bold transition whitespace-nowrap';
+        btn.dataset.cat=cat;
+        btn.onclick=()=>setCat(cat);
+        btn.textContent=(cat==='all')?'すべて':cat;
+        if(cat==='all') btn.classList.add('cat-active');
+        box.appendChild(btn);
+      });
+    }
+
+    // ★タグボタン生成（選択状態は selectedTags に追従）
+    function renderTagButtons(){
+      const box=document.getElementById('tag-buttons');
+      box.innerHTML='';
+
+      const allTags = [];
+      db.forEach(d => (d.tags||[]).forEach(t => allTags.push(t)));
+      const unique = Array.from(new Set(allTags)).sort((a,b)=>a.localeCompare(b,'ja'));
+
+      unique.forEach(tag=>{
+        const btn=document.createElement('button');
+        btn.className='tag-btn px-4 py-2 bg-stone-100 rounded-full text-[10px] font-black border border-stone-200 transition whitespace-nowrap';
+        btn.dataset.tag=tag;
+        btn.onclick=()=>toggleTag(tag);
+        btn.textContent=tag; // #付きのまま表示
+        if(selectedTags.has(tag)) btn.classList.add('tag-active');
+        box.appendChild(btn);
+      });
+
+      updateTagSelectedCount();
+    }
+
+    function updateStats(open,total){
+      const close=total-open;
+      const percent=total>0 ? Math.round((open/total)*100) : 0;
+      document.getElementById('open-percent').textContent = percent + '%';
+
+      const ctx=document.getElementById('ratioChart').getContext('2d');
+      if(myChart) myChart.destroy();
+      myChart=new Chart(ctx,{
+        type:'doughnut',
+        data:{datasets:[{data:[open,close],backgroundColor:['#10b981','#e5e7eb'],borderWeight:0,hoverOffset:0}]},
+        options:{cutout:'82%',plugins:{tooltip:{enabled:false},legend:{display:false}},events:[]}
+      });
+    }
+
+    // ★タグ条件判定
+    function matchTags(shopTags){
+      if(selectedTags.size === 0) return true; // タグ未選択なら無条件OK
+      const tags = shopTags || [];
+
+      if(tagMode === 'AND'){
+        // 全部含む
+        for(const t of selectedTags){
+          if(!tags.includes(t)) return false;
+        }
+        return true;
+      }else{
+        // OR：どれか含む
+        for(const t of selectedTags){
+          if(tags.includes(t)) return true;
+        }
+        return false;
+      }
+    }
+
+    function render(){
+      updateNowClock();
+
+      const listContainer=document.getElementById('shop-list');
+      const emptyState=document.getElementById('empty-state');
+      listContainer.innerHTML='';
+
+      const q=normalizeText(curQuery).toLowerCase();
+      const nowMin=nowMinutes();
+
+      const filtered=db.filter(d=>{
+        const okCat=(curCat==='all'||d.category===curCat);
+        const okQuery=(!q||(d.name||'').toLowerCase().includes(q));
+        const okTags = matchTags(d.tags);
+
+        if(!okCat||!okQuery||!okTags) return false;
+
+        if(curNowOnly){
+          const status=d.schedule[curDay]??'';
+          return isOpenNowByStatus(status, nowMin);
+        }
+        return true;
+      });
+
+      let openCount=0, nightCount=0;
+
+      filtered.forEach(d=>{
+        const status=d.schedule[curDay]??'';
+        const closed=isClosed(status);
+
+        if(!closed){
+          openCount++;
+          if(isNightOpen(status)) nightCount++;
+        }
+
+        const badgeText = (curNowOnly ? 'Open Now' : (closed ? 'Closed' : 'Open'));
+        const badgeClass = (curNowOnly ? 'bg-teal-100 text-teal-800' : (closed ? 'bg-stone-200 text-stone-600' : 'bg-green-100 text-green-700'));
+
+        const info=d.info||{};
+        const tags=d.tags||[];
+
+        const tagHtml = tags.length
+          ? `<div class="mt-3 flex flex-wrap gap-1">
+               ${tags.slice(0,8).map(t => {
+                 const active = selectedTags.has(t);
+                 return `<span class="px-2 py-0.5 ${active ? 'bg-teal-100 border-teal-200 text-teal-800' : 'bg-stone-100 border-stone-200 text-stone-600'} border text-[9px] font-bold rounded-full">${escapeHtml(t)}</span>`;
+               }).join('')}
+               ${tags.length>8 ? `<span class="text-[9px] text-stone-400 font-bold">+${tags.length-8}</span>` : ''}
+             </div>`
+          : '';
+
+        const card=document.createElement('div');
+        card.className=`bg-white p-5 rounded-[2rem] border border-stone-100 flex justify-between items-start gap-4 transition-all ${closed?'opacity-40 grayscale bg-stone-50':'hover:custom-shadow shadow-sm'}`;
+
+        card.innerHTML=`
+          <div class="flex-grow min-w-0">
+            <div class="flex items-center gap-2 mb-2">
+              <span class="px-2 py-0.5 ${badgeClass} text-[9px] font-bold rounded uppercase">${badgeText}</span>
+              <h4 class="font-bold text-sm text-stone-800 truncate">${escapeHtml(d.name)}</h4>
+            </div>
+            <div class="text-[10px] text-amber-600 font-bold mb-2"># ${escapeHtml(d.category)}</div>
+
+            <div class="space-y-1 text-[11px] text-stone-500">
+              ${info.hours ? `<div><span class="font-bold text-stone-400 mr-1">HOURS:</span>${escapeHtml(info.hours)}</div>` : ''}
+              ${info.tel ? `<div><span class="font-bold text-stone-400 mr-1">TEL:</span>${escapeHtml(info.tel)}</div>` : ''}
+              ${info.url ? `<div class="pt-1"><a href="${escapeHtml(info.url)}" target="_blank" class="text-amber-600 underline font-bold">公式リンク</a></div>` : ''}
+            </div>
+
+            ${tagHtml}
+          </div>
+          <div class="text-right flex-shrink-0">
+            <p class="text-sm font-black text-stone-800">${escapeHtml(statusLabel(status))}</p>
+            <p class="text-[8px] text-stone-400 uppercase tracking-tighter">Current Status</p>
+          </div>
+        `;
+        listContainer.appendChild(card);
+      });
+
+      emptyState.classList.toggle('hidden', filtered.length>0);
+      document.getElementById('cur-day-label').textContent=curDay;
+      document.getElementById('open-count').textContent=openCount;
+      document.getElementById('close-count').textContent=filtered.length-openCount;
+      document.getElementById('shown-count').textContent=filtered.length;
+      document.getElementById('all-count').textContent=db.length;
+      document.getElementById('night-rate').textContent=filtered.length>0?Math.round((nightCount/filtered.length)*100):0;
+      document.getElementById('night-count').textContent=nightCount;
+
+      updateStats(openCount, filtered.length);
+    }
+
+    async function loadCsv(){
+      const msg=document.getElementById('load-msg');
+      const errBox=document.getElementById('error-state');
+      const errDetail=document.getElementById('error-detail');
+      msg.classList.remove('hidden');
+      errBox.classList.add('hidden');
+      if(errDetail) errDetail.textContent='';
+
+      try{
+        const base = new URL('.', window.location.href);
+        const url  = new URL(CSV_PATH, base);
+        url.searchParams.set('v', Date.now()); // cache buster
+
+        const res = await fetch(url.toString(), { cache:'no-store' });
+        if(!res.ok) throw new Error(`fetch failed: ${res.status} ${res.statusText} / url=${url}`);
+
+        const text = await res.text();
+        const parsed = Papa.parse(text, { skipEmptyLines:true });
+
+        const rows = (parsed.data || [])
+          .map(r => r.map(c => normalizeText(c)))
+          .filter(r => r.some(c => c !== ''));
+
+        if(rows.length===0) throw new Error(`CSV is empty / url=${url}`);
+
+        const header = rows[0];
+        const idxName = header.indexOf('店名');
+        const idxCat  = header.indexOf('カテゴリ');
+        const idxNote = header.indexOf('備考');
+        const idxDay = {};
+        DAY_KEYS.forEach(d => idxDay[d] = header.indexOf(d));
+
+        if(idxName<0) throw new Error(`missing column: 店名 / header=${header.join('|')}`);
+        if(idxCat<0)  throw new Error(`missing column: カテゴリ / header=${header.join('|')}`);
+        if(DAY_KEYS.some(d => idxDay[d] < 0)) throw new Error(`missing weekday columns / header=${header.join('|')}`);
+
+        db = rows.slice(1)
+          .map(r => {
+            const noteRaw = (idxNote>=0) ? (r[idxNote] ?? '') : '';
+            const schedule = {};
+            DAY_KEYS.forEach(d => schedule[d] = r[idxDay[d]] ?? '');
+
+            const info = parseBasicInfo(noteRaw);
+            const tags = info.tags || [];
+
+            return {
+              name: r[idxName] ?? '',
+              category: r[idxCat] ?? '未分類',
+              schedule,
+              note: noteRaw,
+              info,
+              tags
+            };
+          })
+          .filter(d => d.name)
+          .sort((a,b)=>a.name.localeCompare(b.name,'ja'));
+
+        msg.classList.add('hidden');
+
+        // 初期状態
+        curCat = 'all';
+        selectedTags = new Set();
+        setTagMode('OR'); // ★初期はOR推奨
+        renderCatButtons();
+        renderTagButtons();
+
+        goToday();
+
+        updateNowClock();
+        setInterval(() => { updateNowClock(); if(curNowOnly) render(); }, 60*1000);
+
+        render();
+
+      }catch(e){
+        msg.classList.add('hidden');
+        errBox.classList.remove('hidden');
+        if(errDetail) errDetail.textContent = String(e?.message || e);
+        console.error(e);
+      }
+    }
+
+    window.onload = loadCsv;
+  </script>
+</body>
+</html>
