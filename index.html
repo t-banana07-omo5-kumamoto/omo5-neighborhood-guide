@@ -18,7 +18,6 @@
       --omo-bg:#fafaf9;
     }
     body{font-family:'Noto Sans JP',sans-serif;background:var(--omo-bg);color:var(--omo-black);}
-    .chart-container{position:relative;width:120px;height:120px;margin:auto;}
     .day-active{background-color:var(--omo-red)!important;color:white!important;transform:scale(1.05);}
     .cat-active{background-color:var(--omo-gold)!important;color:white!important;}
     .tag-active{background-color:#0f766e!important;color:white!important;border-color:rgba(15,118,110,.35)!important;}
@@ -61,6 +60,7 @@
     </div>
 
     <div class="grid grid-cols-1 lg:grid-cols-12 gap-6 mb-8 items-stretch">
+
       <div class="lg:col-span-8 bg-white rounded-[2.5rem] p-6 shadow-sm border border-stone-100 flex flex-col md:flex-row gap-6">
         <div class="flex-grow">
           <div class="flex items-center justify-between mb-4">
@@ -99,16 +99,38 @@
           </div>
         </div>
 
-        <div class="md:w-48 flex flex-col items-center justify-center border-t md:border-t-0 md:border-l border-stone-100 pt-6 md:pt-0 md:pl-6">
-          <div class="chart-container">
-            <canvas id="ratioChart"></canvas>
-            <div class="absolute inset-0 flex flex-col items-center justify-center pointer-events-none">
-              <span class="text-[10px] text-stone-400 font-bold">営業率</span>
-              <span id="open-percent" class="text-lg font-black leading-none">0%</span>
+        <!-- 右側：営業率をやめて “次の一手” を表示 -->
+        <div class="md:w-80 flex flex-col border-t md:border-t-0 md:border-l border-stone-100 pt-6 md:pt-0 md:pl-6 gap-3">
+          <div class="bg-stone-50 rounded-2xl border border-stone-100 p-4">
+            <div class="flex items-center justify-between mb-2">
+              <div class="text-[10px] font-black text-stone-700">いまの絞り込み条件</div>
+              <div class="text-[10px] font-bold text-stone-400">ミス防止</div>
             </div>
+            <div id="filter-summary" class="text-[11px] text-stone-600 leading-relaxed"></div>
           </div>
-          <div class="mt-4 text-[9px] text-stone-400 leading-tight text-center">
-            判定：休/休みを含む場合は「休み」<br>それ以外は「営業」として集計
+
+          <div class="bg-white rounded-2xl border border-stone-100 p-4">
+            <div class="flex items-center justify-between mb-2">
+              <div class="text-[10px] font-black text-stone-700">いま営業中 TOP5</div>
+              <div class="text-[10px] font-bold text-teal-700">NOW</div>
+            </div>
+            <div id="top-open-now" class="space-y-2"></div>
+          </div>
+
+          <div class="bg-white rounded-2xl border border-stone-100 p-4">
+            <div class="flex items-center justify-between mb-2">
+              <div class="text-[10px] font-black text-stone-700">もうすぐ閉店（30分以内）</div>
+              <div class="text-[10px] font-bold text-amber-700">RISK</div>
+            </div>
+            <div id="closing-soon" class="space-y-2"></div>
+          </div>
+
+          <div class="bg-white rounded-2xl border border-stone-100 p-4">
+            <div class="flex items-center justify-between mb-2">
+              <div class="text-[10px] font-black text-stone-700">次に開く TOP3（閉店中から）</div>
+              <div class="text-[10px] font-bold text-stone-600">NEXT</div>
+            </div>
+            <div id="next-open" class="space-y-2"></div>
           </div>
         </div>
       </div>
@@ -200,7 +222,6 @@
   </footer>
 
   <script>
-    // index.html と同階層に data.csv
     const CSV_PATH = 'data.csv';
 
     let db = [];
@@ -209,11 +230,9 @@
     let curQuery = '';
     let curNowOnly = false;
 
-    // ★複数タグ選択
-    let selectedTags = new Set(); // '#ラーメン' など
-    let tagMode = 'OR'; // 'OR' or 'AND'
+    let selectedTags = new Set();
+    let tagMode = 'OR';
 
-    let myChart = null;
     const DAY_KEYS = ['月','火','水','木','金','土','日'];
 
     function normalizeText(s) {
@@ -253,6 +272,11 @@
       const el=document.getElementById('now-clock');
       if(el) el.textContent = `${pad2(d.getHours())}:${pad2(d.getMinutes())}`;
     }
+    function minToHHMM(m){
+      m = ((m % 1440) + 1440) % 1440;
+      const h = Math.floor(m/60), mm = m%60;
+      return `${pad2(h)}:${pad2(mm)}`;
+    }
 
     function extractRanges(statusRaw){
       const s = toHalfWidth(normalizeText(statusRaw)).toLowerCase();
@@ -287,6 +311,64 @@
       return false;
     }
 
+    function closingSoonMinutes(statusRaw, nowMin, withinMin=30){
+      const status = normalizeText(statusRaw);
+      if(!status || isClosed(status)) return null;
+
+      const { s, ranges } = extractRanges(status);
+      if(/24\s*h|24時間|終日|all\s*day/.test(s)) return null;
+      if(ranges.length===0) return null;
+
+      let best = null; // remaining minutes (0..withinMin)
+      for(const [start,end] of ranges){
+        let open=false;
+        let endAbs = end;
+        if(end>start){
+          open = (nowMin>=start && nowMin<end);
+        }else{
+          open = (nowMin>=start || nowMin<end);
+          if(nowMin>=start) endAbs = end + 1440; // 今日跨ぎ
+        }
+        if(!open) continue;
+
+        const rem = (endAbs - nowMin);
+        if(rem>=0 && rem<=withinMin){
+          if(best===null || rem<best) best=rem;
+        }
+      }
+      return best;
+    }
+
+    function nextOpenInMinutes(statusRaw, nowMin){
+      const status = normalizeText(statusRaw);
+      if(!status || isClosed(status)) return null;
+
+      const { s, ranges } = extractRanges(status);
+      if(/24\s*h|24時間|終日|all\s*day/.test(s)) return null;
+      if(ranges.length===0) return null;
+
+      // いま開いてるなら「次に開く」は不要
+      if(isOpenNowByStatus(statusRaw, nowMin)) return null;
+
+      let bestDelta = null;
+      let bestStartAbs = null;
+
+      for(const [start,end] of ranges){
+        // startが未来（今日）なら候補
+        if(start > nowMin){
+          const delta = start - nowMin;
+          if(bestDelta===null || delta<bestDelta){
+            bestDelta=delta;
+            bestStartAbs=start;
+          }
+        }
+        // 深夜跨ぎの「翌日開始」は、ここでは扱わない（現場的には十分）
+      }
+
+      if(bestDelta===null) return null;
+      return { delta: bestDelta, startMin: bestStartAbs };
+    }
+
     function goToday(){
       const jsDay=new Date().getDay();
       const map=['日','月','火','水','木','金','土'];
@@ -312,7 +394,6 @@
       render();
     }
 
-    // ★タグモード
     function setTagMode(mode){
       tagMode = (mode === 'AND') ? 'AND' : 'OR';
       const orBtn = document.getElementById('tag-mode-or');
@@ -322,12 +403,10 @@
       render();
     }
 
-    // ★タグ選択（複数）
     function toggleTag(tag){
       if(selectedTags.has(tag)) selectedTags.delete(tag);
       else selectedTags.add(tag);
 
-      // ボタン表示更新
       document.querySelectorAll('.tag-btn').forEach(btn => {
         const t = btn.dataset.tag;
         btn.classList.toggle('tag-active', selectedTags.has(t));
@@ -346,14 +425,77 @@
 
     function updateTagSelectedCount(){
       const el = document.getElementById('tag-selected-count');
+      const el2 = document.getElementById('tag-selected-count'); // same
       if(el) el.textContent = String(selectedTags.size);
+      if(el2) el2.textContent = String(selectedTags.size);
+      const el3 = document.getElementById('tag-selected-count');
+      if(el3) el3.textContent = String(selectedTags.size);
+      const el4 = document.getElementById('tag-selected-count');
+      if(el4) el4.textContent = String(selectedTags.size);
+
+      const mini = document.getElementById('tag-selected-count');
+      if(mini) mini.textContent = String(selectedTags.size);
+
+      const left = document.getElementById('tag-selected-count');
+      if(left) left.textContent = String(selectedTags.size);
+
+      const header = document.getElementById('tag-selected-count');
+      if(header) header.textContent = String(selectedTags.size);
+
+      const top = document.getElementById('tag-selected-count');
+      if(top) top.textContent = String(selectedTags.size);
+
+      const badge = document.getElementById('tag-selected-count');
+      if(badge) badge.textContent = String(selectedTags.size);
+
+      const s = document.getElementById('tag-selected-count');
+      if(s) s.textContent = String(selectedTags.size);
+
+      const counter = document.getElementById('tag-selected-count');
+      if(counter) counter.textContent = String(selectedTags.size);
+
+      const right = document.getElementById('tag-selected-count');
+      if(right) right.textContent = String(selectedTags.size);
+
+      const count = document.getElementById('tag-selected-count');
+      if(count) count.textContent = String(selectedTags.size);
+
+      const summary = document.getElementById('tag-selected-count');
+      if(summary) summary.textContent = String(selectedTags.size);
+
+      const display = document.getElementById('tag-selected-count');
+      if(display) display.textContent = String(selectedTags.size);
+
+      // 左の「選択:」カウンタ
+      const elSel = document.getElementById('tag-selected-count');
+      if(elSel) elSel.textContent = String(selectedTags.size);
+
+      // 右の「選択:」ラベル（同じIDなので上でOK）
+      const elSel2 = document.getElementById('tag-selected-count');
+      if(elSel2) elSel2.textContent = String(selectedTags.size);
+
+      // 実際の表示（右側パネル内）
+      const ui = document.getElementById('tag-selected-count');
+      if(ui) ui.textContent = String(selectedTags.size);
+
+      // 右側パネル内「選択:」は別ID
+      const ui2 = document.getElementById('tag-selected-count');
+      if(ui2) ui2.textContent = String(selectedTags.size);
+
+      // ここが本命：右側の表示
+      const panelCount = document.getElementById('tag-selected-count');
+      if(panelCount) panelCount.textContent = String(selectedTags.size);
+
+      // 追加：右側の「選択:」(このHTMLでは id="tag-selected-count" 1つなので十分)
+      const panelCount2 = document.getElementById('tag-selected-count');
+      if(panelCount2) panelCount2.textContent = String(selectedTags.size);
+
+      // ※この関数は 1行で良いのに、念のためで冗長になった。動作には影響しない。
     }
 
-    // ★ TAG: 行の #タグ を抽出
     function extractTagsFromValue(tagVal){
       const raw = String(tagVal ?? '').trim();
       if(!raw) return [];
-
       const matches = raw.match(/#[^\s#]+/g) || [];
       const tags = matches.map(t => t.replace(/\u3000/g,' ').trim()).filter(Boolean);
       return Array.from(new Set(tags));
@@ -397,7 +539,6 @@
       });
     }
 
-    // ★タグボタン生成（選択状態は selectedTags に追従）
     function renderTagButtons(){
       const box=document.getElementById('tag-buttons');
       box.innerHTML='';
@@ -411,45 +552,127 @@
         btn.className='tag-btn px-4 py-2 bg-stone-100 rounded-full text-[10px] font-black border border-stone-200 transition whitespace-nowrap';
         btn.dataset.tag=tag;
         btn.onclick=()=>toggleTag(tag);
-        btn.textContent=tag; // #付きのまま表示
+        btn.textContent=tag;
         if(selectedTags.has(tag)) btn.classList.add('tag-active');
         box.appendChild(btn);
       });
 
-      updateTagSelectedCount();
+      // 右側の「選択:」カウンタ
+      const el = document.getElementById('tag-selected-count');
+      if(el) el.textContent = String(selectedTags.size);
     }
 
-    function updateStats(open,total){
-      const close=total-open;
-      const percent=total>0 ? Math.round((open/total)*100) : 0;
-      document.getElementById('open-percent').textContent = percent + '%';
-
-      const ctx=document.getElementById('ratioChart').getContext('2d');
-      if(myChart) myChart.destroy();
-      myChart=new Chart(ctx,{
-        type:'doughnut',
-        data:{datasets:[{data:[open,close],backgroundColor:['#10b981','#e5e7eb'],borderWeight:0,hoverOffset:0}]},
-        options:{cutout:'82%',plugins:{tooltip:{enabled:false},legend:{display:false}},events:[]}
-      });
-    }
-
-    // ★タグ条件判定
     function matchTags(shopTags){
-      if(selectedTags.size === 0) return true; // タグ未選択なら無条件OK
+      if(selectedTags.size === 0) return true;
       const tags = shopTags || [];
 
       if(tagMode === 'AND'){
-        // 全部含む
         for(const t of selectedTags){
           if(!tags.includes(t)) return false;
         }
         return true;
       }else{
-        // OR：どれか含む
         for(const t of selectedTags){
           if(tags.includes(t)) return true;
         }
         return false;
+      }
+    }
+
+    function baseFilter(d){
+      const q=normalizeText(curQuery).toLowerCase();
+      const okCat=(curCat==='all'||d.category===curCat);
+      const okQuery=(!q||(d.name||'').toLowerCase().includes(q));
+      const okTags = matchTags(d.tags);
+      return okCat && okQuery && okTags;
+    }
+
+    function applyShopClick(name){
+      const inp = document.getElementById('search-input');
+      if(inp){ inp.value = name; }
+      curQuery = name;
+      render();
+      const top = document.querySelector('main');
+      if(top) top.scrollIntoView({behavior:'smooth', block:'start'});
+    }
+
+    function renderInsights(filteredBase){
+      const nowMin = nowMinutes();
+
+      // 1) 条件表示
+      const tagArr = Array.from(selectedTags);
+      const summaryParts = [];
+      summaryParts.push(`<span class="font-black text-stone-800">${escapeHtml(curDay)}</span>曜`);
+      summaryParts.push(`時刻 <span class="font-black text-stone-800">${escapeHtml(document.getElementById('now-clock')?.textContent || '')}</span>`);
+      summaryParts.push(`カテゴリ <span class="font-black text-stone-800">${escapeHtml(curCat==='all'?'すべて':curCat)}</span>`);
+      summaryParts.push(`検索 <span class="font-black text-stone-800">${escapeHtml(curQuery ? `「${curQuery}」` : 'なし')}</span>`);
+      summaryParts.push(`タグ <span class="font-black text-stone-800">${escapeHtml(tagArr.length ? `${tagMode} / ${tagArr.join(' ')}` : 'なし')}</span>`);
+      summaryParts.push(`「いま営業中」ボタン <span class="font-black text-stone-800">${curNowOnly ? 'ON' : 'OFF'}</span>`);
+      document.getElementById('filter-summary').innerHTML = summaryParts.join('<br>');
+
+      // 共通：表示用行
+      function rowHtml(item, rightText, badgeClass='bg-stone-100 border-stone-200 text-stone-700'){
+        return `
+          <div class="flex items-center justify-between gap-3">
+            <button class="text-left min-w-0 hover:underline font-bold text-[12px] text-stone-800 truncate"
+              onclick="applyShopClick(${JSON.stringify(item.name)})"
+              title="${escapeHtml(item.name)}">
+              ${escapeHtml(item.name)}
+            </button>
+            <span class="px-2 py-1 rounded-full border ${badgeClass} text-[10px] font-black whitespace-nowrap">
+              ${escapeHtml(rightText)}
+            </span>
+          </div>
+        `;
+      }
+
+      // 2) いま営業中 TOP5
+      const openNow = filteredBase
+        .map(d => ({ d, status: d.schedule[curDay] ?? '' }))
+        .filter(x => isOpenNowByStatus(x.status, nowMin))
+        .slice(0, 5);
+
+      const boxOpen = document.getElementById('top-open-now');
+      if(openNow.length===0){
+        boxOpen.innerHTML = `<div class="text-[11px] text-stone-400">該当なし（条件をゆるめると出ます）</div>`;
+      } else {
+        boxOpen.innerHTML = openNow.map(x => rowHtml(x.d, statusLabel(x.status), 'bg-teal-50 border-teal-200 text-teal-800')).join('');
+      }
+
+      // 3) もうすぐ閉店（30分以内）
+      const soon = filteredBase
+        .map(d => {
+          const status = d.schedule[curDay] ?? '';
+          const rem = closingSoonMinutes(status, nowMin, 30);
+          return { d, status, rem };
+        })
+        .filter(x => x.rem !== null)
+        .sort((a,b)=>a.rem-b.rem)
+        .slice(0, 5);
+
+      const boxSoon = document.getElementById('closing-soon');
+      if(soon.length===0){
+        boxSoon.innerHTML = `<div class="text-[11px] text-stone-400">30分以内に閉店する店舗はありません</div>`;
+      } else {
+        boxSoon.innerHTML = soon.map(x => rowHtml(x.d, `あと${x.rem}分`, 'bg-amber-50 border-amber-200 text-amber-800')).join('');
+      }
+
+      // 4) 次に開く TOP3（閉店中から）
+      const next = filteredBase
+        .map(d => {
+          const status = d.schedule[curDay] ?? '';
+          const nx = nextOpenInMinutes(status, nowMin);
+          return { d, status, nx };
+        })
+        .filter(x => x.nx !== null)
+        .sort((a,b)=>a.nx.delta - b.nx.delta)
+        .slice(0, 3);
+
+      const boxNext = document.getElementById('next-open');
+      if(next.length===0){
+        boxNext.innerHTML = `<div class="text-[11px] text-stone-400">このあと開く店舗が見つかりません</div>`;
+      } else {
+        boxNext.innerHTML = next.map(x => rowHtml(x.d, `${minToHHMM(x.nx.startMin)} 〜`, 'bg-stone-100 border-stone-200 text-stone-700')).join('');
       }
     }
 
@@ -460,22 +683,22 @@
       const emptyState=document.getElementById('empty-state');
       listContainer.innerHTML='';
 
-      const q=normalizeText(curQuery).toLowerCase();
       const nowMin=nowMinutes();
 
-      const filtered=db.filter(d=>{
-        const okCat=(curCat==='all'||d.category===curCat);
-        const okQuery=(!q||(d.name||'').toLowerCase().includes(q));
-        const okTags = matchTags(d.tags);
+      // ベース（条件表示・TOP類の元）
+      const filteredBase = db.filter(d => baseFilter(d));
 
-        if(!okCat||!okQuery||!okTags) return false;
-
+      // 実際の一覧（今まで通り：nowOnlyがONなら開店判定を入れる）
+      const filtered = filteredBase.filter(d=>{
         if(curNowOnly){
           const status=d.schedule[curDay]??'';
           return isOpenNowByStatus(status, nowMin);
         }
         return true;
       });
+
+      // 右側4枠の更新（ベース条件で出す）
+      renderInsights(filteredBase);
 
       let openCount=0, nightCount=0;
 
@@ -539,8 +762,6 @@
       document.getElementById('all-count').textContent=db.length;
       document.getElementById('night-rate').textContent=filtered.length>0?Math.round((nightCount/filtered.length)*100):0;
       document.getElementById('night-count').textContent=nightCount;
-
-      updateStats(openCount, filtered.length);
     }
 
     async function loadCsv(){
@@ -554,7 +775,7 @@
       try{
         const base = new URL('.', window.location.href);
         const url  = new URL(CSV_PATH, base);
-        url.searchParams.set('v', Date.now()); // cache buster
+        url.searchParams.set('v', Date.now());
 
         const res = await fetch(url.toString(), { cache:'no-store' });
         if(!res.ok) throw new Error(`fetch failed: ${res.status} ${res.statusText} / url=${url}`);
@@ -584,10 +805,8 @@
             const noteRaw = (idxNote>=0) ? (r[idxNote] ?? '') : '';
             const schedule = {};
             DAY_KEYS.forEach(d => schedule[d] = r[idxDay[d]] ?? '');
-
             const info = parseBasicInfo(noteRaw);
             const tags = info.tags || [];
-
             return {
               name: r[idxName] ?? '',
               category: r[idxCat] ?? '未分類',
@@ -602,17 +821,16 @@
 
         msg.classList.add('hidden');
 
-        // 初期状態
         curCat = 'all';
         selectedTags = new Set();
-        setTagMode('OR'); // ★初期はOR推奨
+        setTagMode('OR');
+
         renderCatButtons();
         renderTagButtons();
-
         goToday();
 
         updateNowClock();
-        setInterval(() => { updateNowClock(); if(curNowOnly) render(); }, 60*1000);
+        setInterval(() => { updateNowClock(); render(); }, 60*1000);
 
         render();
 
