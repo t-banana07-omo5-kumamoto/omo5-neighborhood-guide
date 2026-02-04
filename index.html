@@ -6,7 +6,6 @@
   <title>OMO5熊本：通常営業（曜日別）ご近所ガイド</title>
 
   <script src="https://cdn.tailwindcss.com"></script>
-  <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
   <script src="https://cdn.jsdelivr.net/npm/papaparse@5.4.1/papaparse.min.js"></script>
   <link href="https://fonts.googleapis.com/css2?family=Noto+Sans+JP:wght@400;700;900&display=swap" rel="stylesheet">
 
@@ -18,7 +17,7 @@
       --omo-bg:#fafaf9;
     }
     body{font-family:'Noto Sans JP',sans-serif;background:var(--omo-bg);color:var(--omo-black);}
-    .day-active{background-color:var(--omo-red)!important;color:white!important;transform:scale(1.05);}
+    .day-active{background-color:var(--omo-red)!important;color:white!important;transform:scale(1.02);}
     .cat-active{background-color:var(--omo-gold)!important;color:white!important;}
     .tag-active{background-color:#0f766e!important;color:white!important;border-color:rgba(15,118,110,.35)!important;}
     .mode-active{background-color:#111827!important;color:white!important;border-color:rgba(17,24,39,.35)!important;}
@@ -26,6 +25,7 @@
     .no-scrollbar::-webkit-scrollbar{display:none;}
     .no-scrollbar{-ms-overflow-style:none;scrollbar-width:none;}
     .now-active{background-color:#0f766e !important;color:white !important;border-color:rgba(15,118,110,0.35) !important;}
+    .panel-title-dot{width:8px;height:20px;border-radius:9999px;}
   </style>
 </head>
 
@@ -47,6 +47,7 @@
 
   <main class="max-w-6xl mx-auto px-4 -mt-10">
 
+    <!-- Day Tabs -->
     <div class="bg-white rounded-3xl p-3 shadow-2xl border border-stone-100 sticky top-4 z-50 mb-8">
       <div class="flex overflow-x-auto gap-2 no-scrollbar" id="day-tabs">
         <button onclick="changeDay('月')" class="day-btn flex-shrink-0 flex-grow basis-1/7 min-w-[70px] border border-stone-100 rounded-2xl py-3 text-center transition-all" data-day="月"><span class="block text-[10px] opacity-50">MON</span><span class="block font-bold">月</span></button>
@@ -61,83 +62,103 @@
 
     <div class="grid grid-cols-1 lg:grid-cols-12 gap-6 mb-8 items-stretch">
 
-      <div class="lg:col-span-8 bg-white rounded-[2.5rem] p-6 shadow-sm border border-stone-100 flex flex-col md:flex-row gap-6">
-        <div class="flex-grow">
-          <div class="flex items-center justify-between mb-4">
-            <h3 class="font-bold flex items-center gap-2">
-              <span class="w-2 h-5 bg-amber-500 rounded-full"></span>
-              <span id="cur-day-label">月</span>曜日のサマリー
-            </h3>
-            <div class="flex items-center gap-3">
-              <button id="today-btn" onclick="goToday()"
-                class="px-3 py-2 rounded-full text-[10px] font-black border border-stone-200 bg-stone-100 hover:bg-stone-200 transition whitespace-nowrap">
-                今日
-              </button>
-              <div class="text-[10px] text-stone-400 font-bold">NOW: <span id="now-clock">--:--</span></div>
-            </div>
-          </div>
-
-          <div class="grid grid-cols-2 sm:grid-cols-4 gap-3">
-            <div class="bg-stone-50 rounded-2xl p-4 border border-stone-100">
-              <div class="text-[10px] text-stone-400 font-bold mb-1 uppercase tracking-wider">Open</div>
-              <div class="text-3xl font-black text-green-600 leading-none"><span id="open-count">0</span><span class="text-xs ml-1 text-stone-400 font-normal">件</span></div>
-            </div>
-            <div class="bg-stone-50 rounded-2xl p-4 border border-stone-100">
-              <div class="text-[10px] text-stone-400 font-bold mb-1 uppercase tracking-wider">Closed</div>
-              <div class="text-3xl font-black text-stone-400 leading-none"><span id="close-count">0</span><span class="text-xs ml-1 text-stone-400 font-normal">件</span></div>
-            </div>
-            <div class="bg-stone-50 rounded-2xl p-4 border border-stone-100">
-              <div class="text-[10px] text-stone-400 font-bold mb-1 uppercase tracking-wider">Night (21-)</div>
-              <div class="text-3xl font-black text-amber-600 leading-none"><span id="night-rate">0</span><span class="text-xs ml-1 text-stone-400 font-normal">%</span></div>
-              <div class="text-[9px] text-stone-400 mt-1">(<span id="night-count">0</span>件)</div>
-            </div>
-            <div class="bg-stone-50 rounded-2xl p-4 border border-stone-100">
-              <div class="text-[10px] text-stone-400 font-bold mb-1 uppercase tracking-wider">Filtered</div>
-              <div class="text-3xl font-black text-stone-800 leading-none"><span id="shown-count">0</span><span class="text-xs ml-1 text-stone-400 font-normal">件</span></div>
-              <div class="text-[9px] text-stone-400 mt-1">Total: <span id="all-count">0</span></div>
-            </div>
+      <!-- Left: Summary + Insights (rebalanced) -->
+      <div class="lg:col-span-8 bg-white rounded-[2.5rem] p-6 shadow-sm border border-stone-100">
+        <div class="flex items-center justify-between mb-5">
+          <h3 class="font-black flex items-center gap-2">
+            <span class="panel-title-dot bg-amber-500"></span>
+            <span id="cur-day-label">月</span>曜日のサマリー
+          </h3>
+          <div class="flex items-center gap-3">
+            <button id="today-btn" onclick="goToday()"
+              class="px-3 py-2 rounded-full text-[10px] font-black border border-stone-200 bg-stone-100 hover:bg-stone-200 transition whitespace-nowrap">
+              今日
+            </button>
+            <div class="text-[10px] text-stone-400 font-bold">NOW: <span id="now-clock">--:--</span></div>
           </div>
         </div>
 
-        <!-- 右側：営業率をやめて “次の一手” を表示 -->
-        <div class="md:w-80 flex flex-col border-t md:border-t-0 md:border-l border-stone-100 pt-6 md:pt-0 md:pl-6 gap-3">
-          <div class="bg-stone-50 rounded-2xl border border-stone-100 p-4">
-            <div class="flex items-center justify-between mb-2">
-              <div class="text-[10px] font-black text-stone-700">いまの絞り込み条件</div>
-              <div class="text-[10px] font-bold text-stone-400">ミス防止</div>
+        <!-- 12-col grid keeps balance -->
+        <div class="grid grid-cols-1 md:grid-cols-12 gap-6 items-start">
+          <!-- Stats -->
+          <div class="md:col-span-7">
+            <div class="grid grid-cols-2 gap-3">
+              <div class="bg-stone-50 rounded-2xl p-4 border border-stone-100">
+                <div class="text-[10px] text-stone-400 font-black mb-1 uppercase tracking-wider">Open</div>
+                <div class="text-3xl font-black text-green-600 leading-none">
+                  <span id="open-count">0</span><span class="text-xs ml-1 text-stone-400 font-normal">件</span>
+                </div>
+              </div>
+              <div class="bg-stone-50 rounded-2xl p-4 border border-stone-100">
+                <div class="text-[10px] text-stone-400 font-black mb-1 uppercase tracking-wider">Closed</div>
+                <div class="text-3xl font-black text-stone-400 leading-none">
+                  <span id="close-count">0</span><span class="text-xs ml-1 text-stone-400 font-normal">件</span>
+                </div>
+              </div>
+              <div class="bg-stone-50 rounded-2xl p-4 border border-stone-100">
+                <div class="text-[10px] text-stone-400 font-black mb-1 uppercase tracking-wider">Night (21-)</div>
+                <div class="text-3xl font-black text-amber-600 leading-none">
+                  <span id="night-rate">0</span><span class="text-xs ml-1 text-stone-400 font-normal">%</span>
+                </div>
+                <div class="text-[10px] text-stone-400 mt-1 font-bold">(<span id="night-count">0</span>件)</div>
+              </div>
+              <div class="bg-stone-50 rounded-2xl p-4 border border-stone-100">
+                <div class="text-[10px] text-stone-400 font-black mb-1 uppercase tracking-wider">Filtered</div>
+                <div class="text-3xl font-black text-stone-800 leading-none">
+                  <span id="shown-count">0</span><span class="text-xs ml-1 text-stone-400 font-normal">件</span>
+                </div>
+                <div class="text-[10px] text-stone-400 mt-1 font-bold">Total: <span id="all-count">0</span></div>
+              </div>
             </div>
-            <div id="filter-summary" class="text-[11px] text-stone-600 leading-relaxed"></div>
+
+            <div class="mt-4 text-[10px] text-stone-400 leading-relaxed">
+              判定：休/休みを含む場合は「休み」<span class="mx-1">/</span>それ以外は「営業」として集計
+            </div>
           </div>
 
-          <div class="bg-white rounded-2xl border border-stone-100 p-4">
-            <div class="flex items-center justify-between mb-2">
-              <div class="text-[10px] font-black text-stone-700">いま営業中 TOP5</div>
-              <div class="text-[10px] font-bold text-teal-700">NOW</div>
+          <!-- Insights -->
+          <div class="md:col-span-5">
+            <div class="bg-stone-50 rounded-2xl border border-stone-100 p-4 mb-3">
+              <div class="flex items-center justify-between mb-2">
+                <div class="text-[10px] font-black text-stone-700">いまの絞り込み条件</div>
+                <div class="text-[10px] font-bold text-stone-400">ミス防止</div>
+              </div>
+              <div id="filter-summary" class="text-[11px] text-stone-600 leading-relaxed"></div>
             </div>
-            <div id="top-open-now" class="space-y-2"></div>
-          </div>
 
-          <div class="bg-white rounded-2xl border border-stone-100 p-4">
-            <div class="flex items-center justify-between mb-2">
-              <div class="text-[10px] font-black text-stone-700">もうすぐ閉店（30分以内）</div>
-              <div class="text-[10px] font-bold text-amber-700">RISK</div>
-            </div>
-            <div id="closing-soon" class="space-y-2"></div>
-          </div>
+            <div class="grid grid-cols-1 sm:grid-cols-2 gap-3">
+              <div class="bg-white rounded-2xl border border-stone-100 p-4">
+                <div class="flex items-center justify-between mb-2">
+                  <div class="text-[10px] font-black text-stone-700">いま営業中 TOP5</div>
+                  <div class="text-[10px] font-black text-teal-700">NOW</div>
+                </div>
+                <div id="top-open-now" class="space-y-2"></div>
+              </div>
 
-          <div class="bg-white rounded-2xl border border-stone-100 p-4">
-            <div class="flex items-center justify-between mb-2">
-              <div class="text-[10px] font-black text-stone-700">次に開く TOP3（閉店中から）</div>
-              <div class="text-[10px] font-bold text-stone-600">NEXT</div>
+              <div class="bg-white rounded-2xl border border-stone-100 p-4">
+                <div class="flex items-center justify-between mb-2">
+                  <div class="text-[10px] font-black text-stone-700">もうすぐ閉店（30分以内）</div>
+                  <div class="text-[10px] font-black text-amber-700">RISK</div>
+                </div>
+                <div id="closing-soon" class="space-y-2"></div>
+              </div>
             </div>
-            <div id="next-open" class="space-y-2"></div>
+
+            <div class="bg-white rounded-2xl border border-stone-100 p-4 mt-3">
+              <div class="flex items-center justify-between mb-2">
+                <div class="text-[10px] font-black text-stone-700">次に開く TOP3（閉店中から）</div>
+                <div class="text-[10px] font-black text-stone-600">NEXT</div>
+              </div>
+              <div id="next-open" class="space-y-2"></div>
+            </div>
           </div>
         </div>
       </div>
 
+      <!-- Right: Filters -->
       <div class="lg:col-span-4 bg-white rounded-[2.5rem] p-6 shadow-sm border border-stone-100 flex flex-col">
-        <h3 class="font-bold mb-4 flex items-center gap-2">
-          <span class="w-2 h-5 bg-stone-800 rounded-full"></span>
+        <h3 class="font-black mb-4 flex items-center gap-2">
+          <span class="panel-title-dot bg-stone-800"></span>
           絞り込み検索
         </h3>
 
@@ -160,12 +181,12 @@
           </div>
         </div>
 
-        <div class="mb-3">
+        <div class="mb-4">
           <div class="text-[10px] font-black text-stone-700 mb-2">カテゴリ</div>
           <div id="cat-buttons" class="flex flex-wrap gap-2 overflow-y-auto no-scrollbar max-h-28"></div>
         </div>
 
-        <div>
+        <div class="mt-1">
           <div class="flex items-center justify-between mb-2">
             <div class="text-[10px] font-black text-stone-700">タグ</div>
             <div class="flex items-center gap-2">
@@ -193,7 +214,7 @@
             </div>
           </div>
 
-          <div id="tag-buttons" class="flex flex-wrap gap-2 overflow-y-auto no-scrollbar max-h-32"></div>
+          <div id="tag-buttons" class="flex flex-wrap gap-2 overflow-y-auto no-scrollbar max-h-40"></div>
           <div class="mt-2 text-[10px] text-stone-400">
             ※ TAG 行の <span class="font-bold">#タグ</span> から自動生成
           </div>
@@ -319,7 +340,7 @@
       if(/24\s*h|24時間|終日|all\s*day/.test(s)) return null;
       if(ranges.length===0) return null;
 
-      let best = null; // remaining minutes (0..withinMin)
+      let best = null;
       for(const [start,end] of ranges){
         let open=false;
         let endAbs = end;
@@ -327,7 +348,7 @@
           open = (nowMin>=start && nowMin<end);
         }else{
           open = (nowMin>=start || nowMin<end);
-          if(nowMin>=start) endAbs = end + 1440; // 今日跨ぎ
+          if(nowMin>=start) endAbs = end + 1440;
         }
         if(!open) continue;
 
@@ -347,14 +368,12 @@
       if(/24\s*h|24時間|終日|all\s*day/.test(s)) return null;
       if(ranges.length===0) return null;
 
-      // いま開いてるなら「次に開く」は不要
       if(isOpenNowByStatus(statusRaw, nowMin)) return null;
 
       let bestDelta = null;
       let bestStartAbs = null;
 
-      for(const [start,end] of ranges){
-        // startが未来（今日）なら候補
+      for(const [start] of ranges){
         if(start > nowMin){
           const delta = start - nowMin;
           if(bestDelta===null || delta<bestDelta){
@@ -362,7 +381,6 @@
             bestStartAbs=start;
           }
         }
-        // 深夜跨ぎの「翌日開始」は、ここでは扱わない（現場的には十分）
       }
 
       if(bestDelta===null) return null;
@@ -403,6 +421,11 @@
       render();
     }
 
+    function updateTagSelectedCount(){
+      const el = document.getElementById('tag-selected-count');
+      if(el) el.textContent = String(selectedTags.size);
+    }
+
     function toggleTag(tag){
       if(selectedTags.has(tag)) selectedTags.delete(tag);
       else selectedTags.add(tag);
@@ -421,76 +444,6 @@
       document.querySelectorAll('.tag-btn').forEach(btn => btn.classList.remove('tag-active'));
       updateTagSelectedCount();
       render();
-    }
-
-    function updateTagSelectedCount(){
-      const el = document.getElementById('tag-selected-count');
-      const el2 = document.getElementById('tag-selected-count'); // same
-      if(el) el.textContent = String(selectedTags.size);
-      if(el2) el2.textContent = String(selectedTags.size);
-      const el3 = document.getElementById('tag-selected-count');
-      if(el3) el3.textContent = String(selectedTags.size);
-      const el4 = document.getElementById('tag-selected-count');
-      if(el4) el4.textContent = String(selectedTags.size);
-
-      const mini = document.getElementById('tag-selected-count');
-      if(mini) mini.textContent = String(selectedTags.size);
-
-      const left = document.getElementById('tag-selected-count');
-      if(left) left.textContent = String(selectedTags.size);
-
-      const header = document.getElementById('tag-selected-count');
-      if(header) header.textContent = String(selectedTags.size);
-
-      const top = document.getElementById('tag-selected-count');
-      if(top) top.textContent = String(selectedTags.size);
-
-      const badge = document.getElementById('tag-selected-count');
-      if(badge) badge.textContent = String(selectedTags.size);
-
-      const s = document.getElementById('tag-selected-count');
-      if(s) s.textContent = String(selectedTags.size);
-
-      const counter = document.getElementById('tag-selected-count');
-      if(counter) counter.textContent = String(selectedTags.size);
-
-      const right = document.getElementById('tag-selected-count');
-      if(right) right.textContent = String(selectedTags.size);
-
-      const count = document.getElementById('tag-selected-count');
-      if(count) count.textContent = String(selectedTags.size);
-
-      const summary = document.getElementById('tag-selected-count');
-      if(summary) summary.textContent = String(selectedTags.size);
-
-      const display = document.getElementById('tag-selected-count');
-      if(display) display.textContent = String(selectedTags.size);
-
-      // 左の「選択:」カウンタ
-      const elSel = document.getElementById('tag-selected-count');
-      if(elSel) elSel.textContent = String(selectedTags.size);
-
-      // 右の「選択:」ラベル（同じIDなので上でOK）
-      const elSel2 = document.getElementById('tag-selected-count');
-      if(elSel2) elSel2.textContent = String(selectedTags.size);
-
-      // 実際の表示（右側パネル内）
-      const ui = document.getElementById('tag-selected-count');
-      if(ui) ui.textContent = String(selectedTags.size);
-
-      // 右側パネル内「選択:」は別ID
-      const ui2 = document.getElementById('tag-selected-count');
-      if(ui2) ui2.textContent = String(selectedTags.size);
-
-      // ここが本命：右側の表示
-      const panelCount = document.getElementById('tag-selected-count');
-      if(panelCount) panelCount.textContent = String(selectedTags.size);
-
-      // 追加：右側の「選択:」(このHTMLでは id="tag-selected-count" 1つなので十分)
-      const panelCount2 = document.getElementById('tag-selected-count');
-      if(panelCount2) panelCount2.textContent = String(selectedTags.size);
-
-      // ※この関数は 1行で良いのに、念のためで冗長になった。動作には影響しない。
     }
 
     function extractTagsFromValue(tagVal){
@@ -530,7 +483,7 @@
       const cats=Array.from(new Set(db.map(d=>d.category))).sort((a,b)=>a.localeCompare(b,'ja'));
       ['all', ...cats].forEach(cat=>{
         const btn=document.createElement('button');
-        btn.className='cat-btn px-4 py-2 bg-stone-100 rounded-full text-[10px] font-bold transition whitespace-nowrap';
+        btn.className='cat-btn px-4 py-2 bg-stone-100 rounded-full text-[10px] font-black transition whitespace-nowrap border border-stone-100';
         btn.dataset.cat=cat;
         btn.onclick=()=>setCat(cat);
         btn.textContent=(cat==='all')?'すべて':cat;
@@ -557,9 +510,7 @@
         box.appendChild(btn);
       });
 
-      // 右側の「選択:」カウンタ
-      const el = document.getElementById('tag-selected-count');
-      if(el) el.textContent = String(selectedTags.size);
+      updateTagSelectedCount();
     }
 
     function matchTags(shopTags){
@@ -599,19 +550,16 @@
     function renderInsights(filteredBase){
       const nowMin = nowMinutes();
 
-      // 1) 条件表示
+      // 条件表示
       const tagArr = Array.from(selectedTags);
       const summaryParts = [];
-      summaryParts.push(`<span class="font-black text-stone-800">${escapeHtml(curDay)}</span>曜`);
-      summaryParts.push(`時刻 <span class="font-black text-stone-800">${escapeHtml(document.getElementById('now-clock')?.textContent || '')}</span>`);
-      summaryParts.push(`カテゴリ <span class="font-black text-stone-800">${escapeHtml(curCat==='all'?'すべて':curCat)}</span>`);
-      summaryParts.push(`検索 <span class="font-black text-stone-800">${escapeHtml(curQuery ? `「${curQuery}」` : 'なし')}</span>`);
+      summaryParts.push(`<span class="font-black text-stone-800">${escapeHtml(curDay)}</span>曜 / 時刻 <span class="font-black text-stone-800">${escapeHtml(document.getElementById('now-clock')?.textContent || '')}</span>`);
+      summaryParts.push(`カテゴリ <span class="font-black text-stone-800">${escapeHtml(curCat==='all'?'すべて':curCat)}</span> / 検索 <span class="font-black text-stone-800">${escapeHtml(curQuery ? `「${curQuery}」` : 'なし')}</span>`);
       summaryParts.push(`タグ <span class="font-black text-stone-800">${escapeHtml(tagArr.length ? `${tagMode} / ${tagArr.join(' ')}` : 'なし')}</span>`);
       summaryParts.push(`「いま営業中」ボタン <span class="font-black text-stone-800">${curNowOnly ? 'ON' : 'OFF'}</span>`);
       document.getElementById('filter-summary').innerHTML = summaryParts.join('<br>');
 
-      // 共通：表示用行
-      function rowHtml(item, rightText, badgeClass='bg-stone-100 border-stone-200 text-stone-700'){
+      function rowHtml(item, rightText, badgeClass){
         return `
           <div class="flex items-center justify-between gap-3">
             <button class="text-left min-w-0 hover:underline font-bold text-[12px] text-stone-800 truncate"
@@ -626,7 +574,7 @@
         `;
       }
 
-      // 2) いま営業中 TOP5
+      // いま営業中 TOP5
       const openNow = filteredBase
         .map(d => ({ d, status: d.schedule[curDay] ?? '' }))
         .filter(x => isOpenNowByStatus(x.status, nowMin))
@@ -634,12 +582,12 @@
 
       const boxOpen = document.getElementById('top-open-now');
       if(openNow.length===0){
-        boxOpen.innerHTML = `<div class="text-[11px] text-stone-400">該当なし（条件をゆるめると出ます）</div>`;
+        boxOpen.innerHTML = `<div class="text-[11px] text-stone-400">該当なし</div>`;
       } else {
         boxOpen.innerHTML = openNow.map(x => rowHtml(x.d, statusLabel(x.status), 'bg-teal-50 border-teal-200 text-teal-800')).join('');
       }
 
-      // 3) もうすぐ閉店（30分以内）
+      // もうすぐ閉店（30分以内）
       const soon = filteredBase
         .map(d => {
           const status = d.schedule[curDay] ?? '';
@@ -652,12 +600,12 @@
 
       const boxSoon = document.getElementById('closing-soon');
       if(soon.length===0){
-        boxSoon.innerHTML = `<div class="text-[11px] text-stone-400">30分以内に閉店する店舗はありません</div>`;
+        boxSoon.innerHTML = `<div class="text-[11px] text-stone-400">30分以内はなし</div>`;
       } else {
         boxSoon.innerHTML = soon.map(x => rowHtml(x.d, `あと${x.rem}分`, 'bg-amber-50 border-amber-200 text-amber-800')).join('');
       }
 
-      // 4) 次に開く TOP3（閉店中から）
+      // 次に開く TOP3
       const next = filteredBase
         .map(d => {
           const status = d.schedule[curDay] ?? '';
@@ -670,7 +618,7 @@
 
       const boxNext = document.getElementById('next-open');
       if(next.length===0){
-        boxNext.innerHTML = `<div class="text-[11px] text-stone-400">このあと開く店舗が見つかりません</div>`;
+        boxNext.innerHTML = `<div class="text-[11px] text-stone-400">見つかりません</div>`;
       } else {
         boxNext.innerHTML = next.map(x => rowHtml(x.d, `${minToHHMM(x.nx.startMin)} 〜`, 'bg-stone-100 border-stone-200 text-stone-700')).join('');
       }
@@ -685,10 +633,8 @@
 
       const nowMin=nowMinutes();
 
-      // ベース（条件表示・TOP類の元）
       const filteredBase = db.filter(d => baseFilter(d));
 
-      // 実際の一覧（今まで通り：nowOnlyがONなら開店判定を入れる）
       const filtered = filteredBase.filter(d=>{
         if(curNowOnly){
           const status=d.schedule[curDay]??'';
@@ -697,7 +643,6 @@
         return true;
       });
 
-      // 右側4枠の更新（ベース条件で出す）
       renderInsights(filteredBase);
 
       let openCount=0, nightCount=0;
@@ -824,6 +769,7 @@
         curCat = 'all';
         selectedTags = new Set();
         setTagMode('OR');
+        updateTagSelectedCount();
 
         renderCatButtons();
         renderTagButtons();
@@ -831,7 +777,6 @@
 
         updateNowClock();
         setInterval(() => { updateNowClock(); render(); }, 60*1000);
-
         render();
 
       }catch(e){
