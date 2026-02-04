@@ -26,6 +26,8 @@
     .no-scrollbar{-ms-overflow-style:none;scrollbar-width:none;}
     .now-active{background-color:#0f766e !important;color:white !important;border-color:rgba(15,118,110,0.35) !important;}
     .panel-title-dot{width:8px;height:20px;border-radius:9999px;}
+    .soft-btn{border:1px solid rgba(120,113,108,.22);background:rgba(120,113,108,.08);}
+    .soft-btn:hover{background:rgba(120,113,108,.14);}
   </style>
 </head>
 
@@ -62,7 +64,7 @@
 
     <div class="grid grid-cols-1 lg:grid-cols-12 gap-6 mb-8 items-stretch">
 
-      <!-- Left: Summary + Insights (rebalanced) -->
+      <!-- Left -->
       <div class="lg:col-span-8 bg-white rounded-[2.5rem] p-6 shadow-sm border border-stone-100">
         <div class="flex items-center justify-between mb-5">
           <h3 class="font-black flex items-center gap-2">
@@ -78,9 +80,9 @@
           </div>
         </div>
 
-        <!-- 12-col grid keeps balance -->
         <div class="grid grid-cols-1 md:grid-cols-12 gap-6 items-start">
-          <!-- Stats -->
+
+          <!-- Stats + Time Filter -->
           <div class="md:col-span-7">
             <div class="grid grid-cols-2 gap-3">
               <div class="bg-stone-50 rounded-2xl p-4 border border-stone-100">
@@ -108,6 +110,61 @@
                   <span id="shown-count">0</span><span class="text-xs ml-1 text-stone-400 font-normal">件</span>
                 </div>
                 <div class="text-[10px] text-stone-400 mt-1 font-bold">Total: <span id="all-count">0</span></div>
+              </div>
+            </div>
+
+            <!-- Time Filter Box (fills the “empty” area) -->
+            <div class="mt-4 bg-white rounded-2xl border border-stone-100 p-4">
+              <div class="flex items-center justify-between gap-3 mb-3">
+                <div class="flex items-center gap-2">
+                  <span class="panel-title-dot bg-teal-700"></span>
+                  <div class="text-[11px] font-black text-stone-800">時刻指定で絞り込み</div>
+                </div>
+                <label class="flex items-center gap-2 cursor-pointer select-none">
+                  <input id="time-filter-enabled" type="checkbox" class="accent-teal-700" onchange="toggleTimeFilter(this.checked)">
+                  <span class="text-[10px] font-black text-stone-600">ON</span>
+                </label>
+              </div>
+
+              <div class="grid grid-cols-1 sm:grid-cols-12 gap-3 items-center">
+                <div class="sm:col-span-6">
+                  <div class="text-[10px] text-stone-500 font-bold mb-1">モード</div>
+                  <div class="flex items-center gap-2">
+                    <button id="time-mode-point" onclick="setTimeMode('POINT')" class="px-3 py-2 rounded-full text-[10px] font-black soft-btn transition">
+                      指定時刻
+                    </button>
+                    <button id="time-mode-am" onclick="setTimeMode('AM')" class="px-3 py-2 rounded-full text-[10px] font-black soft-btn transition">
+                      午前（05–11）
+                    </button>
+                  </div>
+                </div>
+
+                <div class="sm:col-span-6">
+                  <div class="text-[10px] text-stone-500 font-bold mb-1">指定時刻</div>
+                  <div class="flex items-center gap-2">
+                    <input id="time-pick" type="time" value="08:00" step="300"
+                      class="w-full px-3 py-2 rounded-2xl border border-stone-200 bg-stone-50 text-sm font-bold outline-none focus:ring-2 focus:ring-teal-200 transition"
+                      onchange="setTimePick(this.value)">
+                    <button onclick="useNowAsPick()"
+                      class="px-3 py-2 rounded-2xl text-[10px] font-black border border-stone-200 bg-stone-100 hover:bg-stone-200 transition whitespace-nowrap">
+                      今
+                    </button>
+                  </div>
+                </div>
+              </div>
+
+              <div class="mt-3 flex flex-wrap items-center gap-2">
+                <button onclick="quickPick('08:00')" class="px-3 py-2 rounded-full text-[10px] font-black soft-btn transition">朝 08:00</button>
+                <button onclick="quickPick('12:00')" class="px-3 py-2 rounded-full text-[10px] font-black soft-btn transition">昼 12:00</button>
+                <button onclick="quickPick('19:00')" class="px-3 py-2 rounded-full text-[10px] font-black soft-btn transition">夜 19:00</button>
+
+                <div class="ml-auto text-[10px] text-stone-400 font-bold">
+                  判定: <span class="text-stone-700 font-black" id="time-filter-label">OFF</span>
+                </div>
+              </div>
+
+              <div class="mt-2 text-[10px] text-stone-400 leading-relaxed">
+                ※「休/休み」は常に除外。営業時間が空欄や解析不能な場合は対象外。
               </div>
             </div>
 
@@ -155,7 +212,7 @@
         </div>
       </div>
 
-      <!-- Right: Filters -->
+      <!-- Right -->
       <div class="lg:col-span-4 bg-white rounded-[2.5rem] p-6 shadow-sm border border-stone-100 flex flex-col">
         <h3 class="font-black mb-4 flex items-center gap-2">
           <span class="panel-title-dot bg-stone-800"></span>
@@ -254,6 +311,12 @@
     let selectedTags = new Set();
     let tagMode = 'OR';
 
+    // NEW: time filter state
+    let timeFilterEnabled = false;     // ON/OFF
+    let timeFilterMode = 'POINT';      // POINT | AM
+    let timePick = '08:00';            // HH:MM
+    let timePickMin = 8 * 60;          // minutes
+
     const DAY_KEYS = ['月','火','水','木','金','土','日'];
 
     function normalizeText(s) {
@@ -312,7 +375,7 @@
       return { s, ranges };
     }
 
-    function isOpenNowByStatus(statusRaw, nowMin){
+    function isOpenNowByStatus(statusRaw, atMin){
       const status = normalizeText(statusRaw);
       if(!status) return false;
       if(isClosed(status)) return false;
@@ -324,10 +387,19 @@
       for(const [start,end] of ranges){
         if(start===end) continue;
         if(end>start){
-          if(nowMin>=start && nowMin<end) return true;
+          if(atMin>=start && atMin<end) return true;
         }else{
-          if(nowMin>=start || nowMin<end) return true;
+          // crosses midnight
+          if(atMin>=start || atMin<end) return true;
         }
+      }
+      return false;
+    }
+
+    // NEW: open during a range (used for AM mode)
+    function isOpenDuring(statusRaw, startMin, endMin, step=15){
+      for(let t=startMin; t<=endMin; t+=step){
+        if(isOpenNowByStatus(statusRaw, t)) return true;
       }
       return false;
     }
@@ -382,7 +454,6 @@
           }
         }
       }
-
       if(bestDelta===null) return null;
       return { delta: bestDelta, startMin: bestStartAbs };
     }
@@ -530,6 +601,18 @@
       }
     }
 
+    // NEW: time filter match
+    function matchTimeFilter(statusRaw){
+      if(!timeFilterEnabled) return true;
+
+      if(timeFilterMode === 'AM'){
+        // morning window 05:00–11:00 (inclusive sampling)
+        return isOpenDuring(statusRaw, 5*60, 11*60, 15);
+      }
+      // POINT
+      return isOpenNowByStatus(statusRaw, timePickMin);
+    }
+
     function baseFilter(d){
       const q=normalizeText(curQuery).toLowerCase();
       const okCat=(curCat==='all'||d.category===curCat);
@@ -550,13 +633,13 @@
     function renderInsights(filteredBase){
       const nowMin = nowMinutes();
 
-      // 条件表示
       const tagArr = Array.from(selectedTags);
       const summaryParts = [];
       summaryParts.push(`<span class="font-black text-stone-800">${escapeHtml(curDay)}</span>曜 / 時刻 <span class="font-black text-stone-800">${escapeHtml(document.getElementById('now-clock')?.textContent || '')}</span>`);
       summaryParts.push(`カテゴリ <span class="font-black text-stone-800">${escapeHtml(curCat==='all'?'すべて':curCat)}</span> / 検索 <span class="font-black text-stone-800">${escapeHtml(curQuery ? `「${curQuery}」` : 'なし')}</span>`);
       summaryParts.push(`タグ <span class="font-black text-stone-800">${escapeHtml(tagArr.length ? `${tagMode} / ${tagArr.join(' ')}` : 'なし')}</span>`);
       summaryParts.push(`「いま営業中」ボタン <span class="font-black text-stone-800">${curNowOnly ? 'ON' : 'OFF'}</span>`);
+      summaryParts.push(`時刻指定 <span class="font-black text-stone-800">${timeFilterEnabled ? (timeFilterMode==='AM' ? '午前(05–11)' : `指定(${minToHHMM(timePickMin)})`) : 'OFF'}</span>`);
       document.getElementById('filter-summary').innerHTML = summaryParts.join('<br>');
 
       function rowHtml(item, rightText, badgeClass){
@@ -574,7 +657,7 @@
         `;
       }
 
-      // いま営業中 TOP5
+      // NOW insights always based on current time (purpose: “今どう？”)
       const openNow = filteredBase
         .map(d => ({ d, status: d.schedule[curDay] ?? '' }))
         .filter(x => isOpenNowByStatus(x.status, nowMin))
@@ -587,7 +670,6 @@
         boxOpen.innerHTML = openNow.map(x => rowHtml(x.d, statusLabel(x.status), 'bg-teal-50 border-teal-200 text-teal-800')).join('');
       }
 
-      // もうすぐ閉店（30分以内）
       const soon = filteredBase
         .map(d => {
           const status = d.schedule[curDay] ?? '';
@@ -605,7 +687,6 @@
         boxSoon.innerHTML = soon.map(x => rowHtml(x.d, `あと${x.rem}分`, 'bg-amber-50 border-amber-200 text-amber-800')).join('');
       }
 
-      // 次に開く TOP3
       const next = filteredBase
         .map(d => {
           const status = d.schedule[curDay] ?? '';
@@ -624,8 +705,31 @@
       }
     }
 
+    function renderTimeFilterUI(){
+      const enabled = document.getElementById('time-filter-enabled');
+      if(enabled) enabled.checked = timeFilterEnabled;
+
+      const pick = document.getElementById('time-pick');
+      if(pick){
+        pick.value = timePick;
+        pick.disabled = (timeFilterMode !== 'POINT');
+        pick.classList.toggle('opacity-50', pick.disabled);
+      }
+
+      const m1 = document.getElementById('time-mode-point');
+      const m2 = document.getElementById('time-mode-am');
+      if(m1) m1.classList.toggle('mode-active', timeFilterMode === 'POINT');
+      if(m2) m2.classList.toggle('mode-active', timeFilterMode === 'AM');
+
+      const label = document.getElementById('time-filter-label');
+      if(label){
+        label.textContent = timeFilterEnabled ? (timeFilterMode==='AM' ? '午前(05–11)' : `指定 ${minToHHMM(timePickMin)}`) : 'OFF';
+      }
+    }
+
     function render(){
       updateNowClock();
+      renderTimeFilterUI();
 
       const listContainer=document.getElementById('shop-list');
       const emptyState=document.getElementById('empty-state');
@@ -633,9 +737,17 @@
 
       const nowMin=nowMinutes();
 
+      // base filter: cat/query/tags
       const filteredBase = db.filter(d => baseFilter(d));
 
-      const filtered = filteredBase.filter(d=>{
+      // apply time filter (指定時刻 / 午前)
+      const filteredTime = filteredBase.filter(d => {
+        const status = d.schedule[curDay] ?? '';
+        return matchTimeFilter(status);
+      });
+
+      // apply "now only" (current time)
+      const filtered = filteredTime.filter(d=>{
         if(curNowOnly){
           const status=d.schedule[curDay]??'';
           return isOpenNowByStatus(status, nowMin);
@@ -709,6 +821,46 @@
       document.getElementById('night-count').textContent=nightCount;
     }
 
+    // ==== NEW: time filter controls ====
+    function toggleTimeFilter(on){
+      timeFilterEnabled = !!on;
+      render();
+    }
+
+    function setTimeMode(mode){
+      timeFilterMode = (mode === 'AM') ? 'AM' : 'POINT';
+      render();
+    }
+
+    function setTimePick(hhmm){
+      timePick = hhmm || '08:00';
+      const m = String(timePick).match(/^(\d{2}):(\d{2})$/);
+      if(m){
+        timePickMin = (+m[1])*60 + (+m[2]);
+      }
+      render();
+    }
+
+    function quickPick(hhmm){
+      setTimeMode('POINT');
+      const pick = document.getElementById('time-pick');
+      if(pick) pick.value = hhmm;
+      setTimePick(hhmm);
+      if(!timeFilterEnabled){
+        timeFilterEnabled = true;
+        const enabled = document.getElementById('time-filter-enabled');
+        if(enabled) enabled.checked = true;
+      }
+      render();
+    }
+
+    function useNowAsPick(){
+      const d = new Date();
+      const hh = pad2(d.getHours());
+      const mm = pad2(d.getMinutes() - (d.getMinutes() % 5)); // 5分刻みに丸め
+      quickPick(`${hh}:${mm}`);
+    }
+
     async function loadCsv(){
       const msg=document.getElementById('load-msg');
       const errBox=document.getElementById('error-state');
@@ -771,6 +923,8 @@
         setTagMode('OR');
         updateTagSelectedCount();
 
+        // initialize time filter UI
+        setTimePick(timePick);
         renderCatButtons();
         renderTagButtons();
         goToday();
