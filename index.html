@@ -113,7 +113,7 @@
               </div>
             </div>
 
-            <!-- Time Filter Box (fills the “empty” area) -->
+            <!-- Time Filter Box -->
             <div class="mt-4 bg-white rounded-2xl border border-stone-100 p-4">
               <div class="flex items-center justify-between gap-3 mb-3">
                 <div class="flex items-center gap-2">
@@ -279,7 +279,8 @@
       </div>
     </div>
 
-    <div id="shop-list" class="grid grid-cols-1 md:grid-cols-2 gap-4"></div>
+    <!-- ✅ ここが重要：md→lg に変更（最大化で崩れにくくする） -->
+    <div id="shop-list" class="grid grid-cols-1 lg:grid-cols-2 gap-4"></div>
 
     <div id="empty-state" class="hidden py-20 text-center bg-stone-100 rounded-[2.5rem] border-2 border-dashed border-stone-200">
       <p class="text-stone-400 text-sm">該当する店舗がありません。</p>
@@ -311,11 +312,11 @@
     let selectedTags = new Set();
     let tagMode = 'OR';
 
-    // NEW: time filter state
-    let timeFilterEnabled = false;     // ON/OFF
-    let timeFilterMode = 'POINT';      // POINT | AM
-    let timePick = '08:00';            // HH:MM
-    let timePickMin = 8 * 60;          // minutes
+    // time filter state
+    let timeFilterEnabled = false;
+    let timeFilterMode = 'POINT'; // POINT | AM
+    let timePick = '08:00';
+    let timePickMin = 8 * 60;
 
     const DAY_KEYS = ['月','火','水','木','金','土','日'];
 
@@ -340,13 +341,12 @@
     function clearQuery(){ curQuery=''; const i=document.getElementById('search-input'); if(i) i.value=''; render(); }
 
     function isClosed(status){ return /休(み)?/.test(normalizeText(status)); }
-    function statusLabel(status){ const s=normalizeText(status); return s ? s.replace(/：/g, ':') : '—'; }
 
-    function isNightOpen(status){
-      const s = toHalfWidth(normalizeText(status));
-      const m = s.match(/(\d{1,2}):(\d{2})\s*-\s*(\d{1,2}):(\d{2})/);
-      if (!m) return false;
-      return parseInt(m[3],10) >= 21;
+    // ✅ 複数行/複数帯の営業時間を分割（改行 or スラッシュで分割）
+    function splitStatusLines(statusRaw){
+      const s = normalizeText(statusRaw);
+      if(!s) return [];
+      return s.split(/\n+|\/+/).map(v => normalizeText(v)).filter(Boolean);
     }
 
     function nowMinutes(){ const d=new Date(); return d.getHours()*60 + d.getMinutes(); }
@@ -389,14 +389,19 @@
         if(end>start){
           if(atMin>=start && atMin<end) return true;
         }else{
-          // crosses midnight
           if(atMin>=start || atMin<end) return true;
         }
       }
       return false;
     }
 
-    // NEW: open during a range (used for AM mode)
+    function isNightOpen(status){
+      const s = toHalfWidth(normalizeText(status));
+      const m = s.match(/(\d{1,2}):(\d{2})\s*-\s*(\d{1,2}):(\d{2})/);
+      if (!m) return false;
+      return parseInt(m[3],10) >= 21;
+    }
+
     function isOpenDuring(statusRaw, startMin, endMin, step=15){
       for(let t=startMin; t<=endMin; t+=step){
         if(isOpenNowByStatus(statusRaw, t)) return true;
@@ -601,18 +606,6 @@
       }
     }
 
-    // NEW: time filter match
-    function matchTimeFilter(statusRaw){
-      if(!timeFilterEnabled) return true;
-
-      if(timeFilterMode === 'AM'){
-        // morning window 05:00–11:00 (inclusive sampling)
-        return isOpenDuring(statusRaw, 5*60, 11*60, 15);
-      }
-      // POINT
-      return isOpenNowByStatus(statusRaw, timePickMin);
-    }
-
     function baseFilter(d){
       const q=normalizeText(curQuery).toLowerCase();
       const okCat=(curCat==='all'||d.category===curCat);
@@ -657,18 +650,15 @@
         `;
       }
 
-      // NOW insights always based on current time (purpose: “今どう？”)
       const openNow = filteredBase
         .map(d => ({ d, status: d.schedule[curDay] ?? '' }))
         .filter(x => isOpenNowByStatus(x.status, nowMin))
         .slice(0, 5);
 
       const boxOpen = document.getElementById('top-open-now');
-      if(openNow.length===0){
-        boxOpen.innerHTML = `<div class="text-[11px] text-stone-400">該当なし</div>`;
-      } else {
-        boxOpen.innerHTML = openNow.map(x => rowHtml(x.d, statusLabel(x.status), 'bg-teal-50 border-teal-200 text-teal-800')).join('');
-      }
+      boxOpen.innerHTML = openNow.length
+        ? openNow.map(x => rowHtml(x.d, x.status ? normalizeText(x.status).split('\n')[0] : '—', 'bg-teal-50 border-teal-200 text-teal-800')).join('')
+        : `<div class="text-[11px] text-stone-400">該当なし</div>`;
 
       const soon = filteredBase
         .map(d => {
@@ -681,11 +671,9 @@
         .slice(0, 5);
 
       const boxSoon = document.getElementById('closing-soon');
-      if(soon.length===0){
-        boxSoon.innerHTML = `<div class="text-[11px] text-stone-400">30分以内はなし</div>`;
-      } else {
-        boxSoon.innerHTML = soon.map(x => rowHtml(x.d, `あと${x.rem}分`, 'bg-amber-50 border-amber-200 text-amber-800')).join('');
-      }
+      boxSoon.innerHTML = soon.length
+        ? soon.map(x => rowHtml(x.d, `あと${x.rem}分`, 'bg-amber-50 border-amber-200 text-amber-800')).join('')
+        : `<div class="text-[11px] text-stone-400">30分以内はなし</div>`;
 
       const next = filteredBase
         .map(d => {
@@ -698,11 +686,9 @@
         .slice(0, 3);
 
       const boxNext = document.getElementById('next-open');
-      if(next.length===0){
-        boxNext.innerHTML = `<div class="text-[11px] text-stone-400">見つかりません</div>`;
-      } else {
-        boxNext.innerHTML = next.map(x => rowHtml(x.d, `${minToHHMM(x.nx.startMin)} 〜`, 'bg-stone-100 border-stone-200 text-stone-700')).join('');
-      }
+      boxNext.innerHTML = next.length
+        ? next.map(x => rowHtml(x.d, `${minToHHMM(x.nx.startMin)} 〜`, 'bg-stone-100 border-stone-200 text-stone-700')).join('')
+        : `<div class="text-[11px] text-stone-400">見つかりません</div>`;
     }
 
     function renderTimeFilterUI(){
@@ -727,101 +713,14 @@
       }
     }
 
-    function render(){
-      updateNowClock();
-      renderTimeFilterUI();
-
-      const listContainer=document.getElementById('shop-list');
-      const emptyState=document.getElementById('empty-state');
-      listContainer.innerHTML='';
-
-      const nowMin=nowMinutes();
-
-      // base filter: cat/query/tags
-      const filteredBase = db.filter(d => baseFilter(d));
-
-      // apply time filter (指定時刻 / 午前)
-      const filteredTime = filteredBase.filter(d => {
-        const status = d.schedule[curDay] ?? '';
-        return matchTimeFilter(status);
-      });
-
-      // apply "now only" (current time)
-      const filtered = filteredTime.filter(d=>{
-        if(curNowOnly){
-          const status=d.schedule[curDay]??'';
-          return isOpenNowByStatus(status, nowMin);
-        }
-        return true;
-      });
-
-      renderInsights(filteredBase);
-
-      let openCount=0, nightCount=0;
-
-      filtered.forEach(d=>{
-        const status=d.schedule[curDay]??'';
-        const closed=isClosed(status);
-
-        if(!closed){
-          openCount++;
-          if(isNightOpen(status)) nightCount++;
-        }
-
-        const badgeText = (curNowOnly ? 'Open Now' : (closed ? 'Closed' : 'Open'));
-        const badgeClass = (curNowOnly ? 'bg-teal-100 text-teal-800' : (closed ? 'bg-stone-200 text-stone-600' : 'bg-green-100 text-green-700'));
-
-        const info=d.info||{};
-        const tags=d.tags||[];
-
-        const tagHtml = tags.length
-          ? `<div class="mt-3 flex flex-wrap gap-1">
-               ${tags.slice(0,8).map(t => {
-                 const active = selectedTags.has(t);
-                 return `<span class="px-2 py-0.5 ${active ? 'bg-teal-100 border-teal-200 text-teal-800' : 'bg-stone-100 border-stone-200 text-stone-600'} border text-[9px] font-bold rounded-full">${escapeHtml(t)}</span>`;
-               }).join('')}
-               ${tags.length>8 ? `<span class="text-[9px] text-stone-400 font-bold">+${tags.length-8}</span>` : ''}
-             </div>`
-          : '';
-
-        const card=document.createElement('div');
-        card.className=`bg-white p-5 rounded-[2rem] border border-stone-100 flex justify-between items-start gap-4 transition-all ${closed?'opacity-40 grayscale bg-stone-50':'hover:custom-shadow shadow-sm'}`;
-
-        card.innerHTML=`
-          <div class="flex-grow min-w-0">
-            <div class="flex items-center gap-2 mb-2">
-              <span class="px-2 py-0.5 ${badgeClass} text-[9px] font-bold rounded uppercase">${badgeText}</span>
-              <h4 class="font-bold text-sm text-stone-800 truncate">${escapeHtml(d.name)}</h4>
-            </div>
-            <div class="text-[10px] text-amber-600 font-bold mb-2"># ${escapeHtml(d.category)}</div>
-
-            <div class="space-y-1 text-[11px] text-stone-500">
-              ${info.hours ? `<div><span class="font-bold text-stone-400 mr-1">HOURS:</span>${escapeHtml(info.hours)}</div>` : ''}
-              ${info.tel ? `<div><span class="font-bold text-stone-400 mr-1">TEL:</span>${escapeHtml(info.tel)}</div>` : ''}
-              ${info.url ? `<div class="pt-1"><a href="${escapeHtml(info.url)}" target="_blank" class="text-amber-600 underline font-bold">公式リンク</a></div>` : ''}
-            </div>
-
-            ${tagHtml}
-          </div>
-          <div class="text-right flex-shrink-0">
-            <p class="text-sm font-black text-stone-800">${escapeHtml(statusLabel(status))}</p>
-            <p class="text-[8px] text-stone-400 uppercase tracking-tighter">Current Status</p>
-          </div>
-        `;
-        listContainer.appendChild(card);
-      });
-
-      emptyState.classList.toggle('hidden', filtered.length>0);
-      document.getElementById('cur-day-label').textContent=curDay;
-      document.getElementById('open-count').textContent=openCount;
-      document.getElementById('close-count').textContent=filtered.length-openCount;
-      document.getElementById('shown-count').textContent=filtered.length;
-      document.getElementById('all-count').textContent=db.length;
-      document.getElementById('night-rate').textContent=filtered.length>0?Math.round((nightCount/filtered.length)*100):0;
-      document.getElementById('night-count').textContent=nightCount;
+    function matchTimeFilter(statusRaw){
+      if(!timeFilterEnabled) return true;
+      if(timeFilterMode === 'AM'){
+        return isOpenDuring(statusRaw, 5*60, 11*60, 15);
+      }
+      return isOpenNowByStatus(statusRaw, timePickMin);
     }
 
-    // ==== NEW: time filter controls ====
     function toggleTimeFilter(on){
       timeFilterEnabled = !!on;
       render();
@@ -857,8 +756,119 @@
     function useNowAsPick(){
       const d = new Date();
       const hh = pad2(d.getHours());
-      const mm = pad2(d.getMinutes() - (d.getMinutes() % 5)); // 5分刻みに丸め
+      const mm = pad2(d.getMinutes() - (d.getMinutes() % 5));
       quickPick(`${hh}:${mm}`);
+    }
+
+    function render(){
+      updateNowClock();
+      renderTimeFilterUI();
+
+      const listContainer=document.getElementById('shop-list');
+      const emptyState=document.getElementById('empty-state');
+      listContainer.innerHTML='';
+
+      const nowMin=nowMinutes();
+
+      const filteredBase = db.filter(d => baseFilter(d));
+
+      const filteredTime = filteredBase.filter(d => {
+        const status = d.schedule[curDay] ?? '';
+        return matchTimeFilter(status);
+      });
+
+      const filtered = filteredTime.filter(d=>{
+        if(curNowOnly){
+          const status=d.schedule[curDay]??'';
+          return isOpenNowByStatus(status, nowMin);
+        }
+        return true;
+      });
+
+      renderInsights(filteredBase);
+
+      let openCount=0, nightCount=0;
+
+      filtered.forEach(d=>{
+        const status=d.schedule[curDay]??'';
+        const closed=isClosed(status);
+
+        if(!closed){
+          openCount++;
+          if(isNightOpen(status)) nightCount++;
+        }
+
+        const badgeText = (curNowOnly ? 'Open Now' : (closed ? 'Closed' : 'Open'));
+        const badgeClass = (curNowOnly ? 'bg-teal-100 text-teal-800' : (closed ? 'bg-stone-200 text-stone-600' : 'bg-green-100 text-green-700'));
+
+        const info=d.info||{};
+        const tags=d.tags||[];
+
+        const tagHtml = tags.length
+          ? `<div class="mt-3 flex flex-wrap gap-1">
+               ${tags.slice(0,10).map(t => {
+                 const active = selectedTags.has(t);
+                 return `<span class="px-2 py-0.5 ${active ? 'bg-teal-100 border-teal-200 text-teal-800' : 'bg-stone-100 border-stone-200 text-stone-600'} border text-[9px] font-bold rounded-full">${escapeHtml(t)}</span>`;
+               }).join('')}
+               ${tags.length>10 ? `<span class="text-[9px] text-stone-400 font-bold">+${tags.length-10}</span>` : ``}
+             </div>`
+          : '';
+
+        // ✅ 右側：営業時間を「行ごとのバッジ」にする（崩れ防止）
+        const statusLines = splitStatusLines(status);
+        const statusHtml = statusLines.length
+          ? `<div class="flex flex-col items-end gap-1">
+               ${statusLines.slice(0,5).map(line => `
+                 <span class="px-2 py-1 rounded-full bg-stone-100 border border-stone-200 text-[10px] font-black text-stone-800 whitespace-nowrap">
+                   ${escapeHtml(line)}
+                 </span>
+               `).join('')}
+               ${statusLines.length>5 ? `<div class="text-[10px] text-stone-400 font-bold">+${statusLines.length-5}</div>` : ``}
+             </div>`
+          : `<span class="text-[12px] font-black text-stone-800">—</span>`;
+
+        const card=document.createElement('div');
+
+        // ✅ カード自体も縦→横レスポンシブに（sm未満は縦に落ちる）
+        card.className =
+          `bg-white p-5 rounded-[2rem] border border-stone-100
+           flex flex-col sm:flex-row sm:justify-between sm:items-start gap-4 transition-all
+           ${closed ? 'opacity-40 grayscale bg-stone-50' : 'hover:custom-shadow shadow-sm'}`;
+
+        card.innerHTML=`
+          <div class="flex-grow min-w-0">
+            <div class="flex items-center gap-2 mb-2">
+              <span class="px-2 py-0.5 ${badgeClass} text-[9px] font-bold rounded uppercase">${badgeText}</span>
+              <h4 class="font-bold text-sm text-stone-800 truncate">${escapeHtml(d.name)}</h4>
+            </div>
+            <div class="text-[10px] text-amber-600 font-bold mb-2"># ${escapeHtml(d.category)}</div>
+
+            <div class="space-y-1 text-[11px] text-stone-500">
+              ${info.hours ? `<div><span class="font-bold text-stone-400 mr-1">HOURS:</span>${escapeHtml(info.hours)}</div>` : ''}
+              ${info.tel ? `<div><span class="font-bold text-stone-400 mr-1">TEL:</span>${escapeHtml(info.tel)}</div>` : ''}
+              ${info.url ? `<div class="pt-1"><a href="${escapeHtml(info.url)}" target="_blank" class="text-amber-600 underline font-bold">公式リンク</a></div>` : ''}
+            </div>
+
+            ${tagHtml}
+          </div>
+
+          <div class="text-right flex-shrink-0">
+            ${statusHtml}
+            <p class="text-[8px] text-stone-400 uppercase tracking-tighter mt-1">CURRENT STATUS</p>
+          </div>
+        `;
+
+        listContainer.appendChild(card);
+      });
+
+      emptyState.classList.toggle('hidden', filtered.length>0);
+      document.getElementById('cur-day-label').textContent=curDay;
+      document.getElementById('open-count').textContent=openCount;
+      document.getElementById('close-count').textContent=filtered.length-openCount;
+      document.getElementById('shown-count').textContent=filtered.length;
+      document.getElementById('all-count').textContent=db.length;
+      document.getElementById('night-rate').textContent=filtered.length>0?Math.round((nightCount/filtered.length)*100):0;
+      document.getElementById('night-count').textContent=nightCount;
     }
 
     async function loadCsv(){
@@ -923,8 +933,8 @@
         setTagMode('OR');
         updateTagSelectedCount();
 
-        // initialize time filter UI
         setTimePick(timePick);
+
         renderCatButtons();
         renderTagButtons();
         goToday();
