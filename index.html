@@ -164,7 +164,7 @@
               </div>
 
               <div class="mt-2 text-[10px] text-stone-400 leading-relaxed">
-                ※「休/休み」は常に除外。営業時間が空欄や解析不能な場合は対象外。
+                ※24:00〜29:55は選択曜日の翌日です。00:00〜05:00には前日の深夜営業も含まれます。営業時間が空欄や解析不能な場合は対象外。
               </div>
             </div>
 
@@ -234,7 +234,7 @@
             いま営業中
           </button>
           <div class="text-[10px] text-stone-400 font-bold">
-            選択曜日の <span class="text-stone-700">現在時刻</span> で判定
+            選択曜日の <span class="text-stone-700">現在時刻</span> で判定（深夜は前日分も参照）
           </div>
         </div>
 
@@ -362,105 +362,135 @@
       return `${pad2(h)}:${pad2(mm)}`;
     }
 
+    // 営業時間は「営業開始曜日の時刻軸」に統一する。
+    // 例：金 18:00-27:00 は 土 02:00 にも営業中。
     function extractRanges(statusRaw){
       const s = toHalfWidth(normalizeText(statusRaw)).toLowerCase();
       const ranges = [];
-      const re = /(\d{1,2}):(\d{2})\s*-\s*(\d{1,2}):(\d{2})/g;
+      if(!s || isClosed(s)) return {s, ranges};
+      if(/24\s*h|24時間|終日|all\s*day/.test(s)) return {s, ranges:[[0,1440]]};
+      const re = /(\d{1,2}):(\d{2})\s*[-－–—〜～~]\s*(\d{1,2}):(\d{2})/g;
       let m;
       while((m=re.exec(s))!==null){
         const sh=+m[1], sm=+m[2], eh=+m[3], em=+m[4];
-        if([sh,sm,eh,em].some(Number.isNaN)) continue;
-        ranges.push([sh*60+sm, eh*60+em]);
+        if(sh>47 || eh>47 || sm>59 || em>59) continue;
+        const start=sh*60+sm;
+        let end=eh*60+em;
+        if(end===start) continue;
+        if(end<start) end+=1440; // 22:00-03:00 のような表記にも対応
+        ranges.push([start,end]);
       }
-      return { s, ranges };
+      return {s, ranges};
     }
 
-    function isOpenNowByStatus(statusRaw, atMin){
-      const status = normalizeText(statusRaw);
-      if(!status) return false;
-      if(isClosed(status)) return false;
+    function adjacentDay(day, offset){
+      const index=DAY_KEYS.indexOf(day);
+      return DAY_KEYS[(index+offset%7+7)%7];
+    }
 
-      const { s, ranges } = extractRanges(status);
-      if(/24\s*h|24時間|終日|all\s*day/.test(s)) return true;
-      if(ranges.length===0) return false;
+    // 「選択した曜日」の 00:00〜23:59 を基本とし、
+    // 24:00以降を指定した場合は選択曜日の翌日として解釈する。
+    function actualDayAndMinute(day, minute){
+      const days=Math.floor(minute/1440);
+      return {day:adjacentDay(day,days), minute:minute-days*1440};
+    }
 
-      for(const [start,end] of ranges){
-        if(start===end) continue;
-        if(end>start){
-          if(atMin>=start && atMin<end) return true;
-        }else{
-          if(atMin>=start || atMin<end) return true;
+    function intervalsForShop(shop, day){
+      const intervals=[];
+      for(const offset of [-1,0]){
+        const origin=adjacentDay(day,offset);
+        const status=shop.schedule[origin] || '';
+        const {ranges}=extractRanges(status);
+        for(const [start,end] of ranges){
+          intervals.push({start:start+offset*1440,end:end+offset*1440,origin,status});
         }
       }
-      return false;
+      return intervals;
+    }
+
+    function activeIntervals(shop, day, minute){
+      const actual=actualDayAndMinute(day,minute);
+      return intervalsForShop(shop,actual.day).filter(r=>actual.minute>=r.start && actual.minute<r.end);
+    }
+
+    function isShopOpenAt(shop,day,minute){
+      return activeIntervals(shop,day,minute).length>0;
+    }
+
+    function statusForShopAt(shop,day,minute){
+      const open=activeIntervals(shop,day,minute);
+      if(open.length){
+        // 前日の持ち越し営業の場合、正しい営業時間を表示する
+        const current=open.find(r=>r.origin===actualDayAndMinute(day,minute).day) || open[0];
+        return current.status;
+      }
+      return shop.schedule[actualDayAndMinute(day,minute).day] || '';
     }
 
     function isNightOpen(status){
-      const s = toHalfWidth(normalizeText(status));
-      const m = s.match(/(\d{1,2}):(\d{2})\s*-\s*(\d{1,2}):(\d{2})/);
-      if (!m) return false;
-      return parseInt(m[3],10) >= 21;
+      return extractRanges(status).ranges.some(([start,end])=>end>21*60 && start<end);
     }
 
-    function isOpenDuring(statusRaw, startMin, endMin, step=15){
-      for(let t=startMin; t<=endMin; t+=step){
-        if(isOpenNowByStatus(statusRaw, t)) return true;
+    function isShopOpenDuring(shop,day,startMin,endMin,step=15){
+      for(let t=startMin;t<=endMin;t+=step){
+        if(isShopOpenAt(shop,day,t)) return true;
       }
       return false;
     }
 
-    function closingSoonMinutes(statusRaw, nowMin, withinMin=30){
-      const status = normalizeText(statusRaw);
-      if(!status || isClosed(status)) return null;
-
-      const { s, ranges } = extractRanges(status);
-      if(/24\s*h|24時間|終日|all\s*day/.test(s)) return null;
-      if(ranges.length===0) return null;
-
-      let best = null;
-      for(const [start,end] of ranges){
-        let open=false;
-        let endAbs = end;
-        if(end>start){
-          open = (nowMin>=start && nowMin<end);
-        }else{
-          open = (nowMin>=start || nowMin<end);
-          if(nowMin>=start) endAbs = end + 1440;
-        }
-        if(!open) continue;
-
-        const rem = (endAbs - nowMin);
-        if(rem>=0 && rem<=withinMin){
-          if(best===null || rem<best) best=rem;
+    function closingSoonForShop(shop,day,minute,withinMin=30){
+      const actual=actualDayAndMinute(day,minute);
+      const active=activeIntervals(shop,day,minute);
+      if(!active.length) return null;
+      // 重なった営業時間を1つの連続営業として扱い、途中で閉店しないようにする。
+      let closingAt=Math.max(...active.map(r=>r.end));
+      let extended=true;
+      const all=intervalsForShop(shop,actual.day);
+      while(extended){
+        extended=false;
+        for(const r of all){
+          if(r.start<=closingAt && r.end>closingAt){closingAt=r.end;extended=true;}
         }
       }
-      return best;
+      const remaining=closingAt-actual.minute;
+      return remaining>=0 && remaining<=withinMin ? remaining : null;
     }
 
-    function nextOpenInMinutes(statusRaw, nowMin){
-      const status = normalizeText(statusRaw);
-      if(!status || isClosed(status)) return null;
-
-      const { s, ranges } = extractRanges(status);
-      if(/24\s*h|24時間|終日|all\s*day/.test(s)) return null;
-      if(ranges.length===0) return null;
-
-      if(isOpenNowByStatus(statusRaw, nowMin)) return null;
-
-      let bestDelta = null;
-      let bestStartAbs = null;
-
-      for(const [start] of ranges){
-        if(start > nowMin){
-          const delta = start - nowMin;
-          if(bestDelta===null || delta<bestDelta){
-            bestDelta=delta;
-            bestStartAbs=start;
+    function nextOpenForShop(shop,day,minute){
+      if(isShopOpenAt(shop,day,minute)) return null;
+      const actual=actualDayAndMinute(day,minute);
+      const candidates=[];
+      for(let offset=0;offset<=7;offset++){
+        const origin=adjacentDay(actual.day,offset);
+        const {ranges}=extractRanges(shop.schedule[origin]||'');
+        for(const [start] of ranges){
+          const absolute=offset*1440+start;
+          if(absolute>actual.minute){
+            candidates.push({delta:absolute-actual.minute,startMin:start,day:origin});
           }
         }
       }
-      if(bestDelta===null) return null;
-      return { delta: bestDelta, startMin: bestStartAbs };
+      candidates.sort((a,b)=>a.delta-b.delta);
+      return candidates[0] || null;
+    }
+
+    function formatTimeExtended(min){
+      return `${pad2(Math.floor(min/60))}:${pad2(min%60)}`;
+    }
+
+    function initTimeChoices(){
+      const select=document.getElementById('time-pick');
+      if(!select) return;
+      select.innerHTML='';
+      for(let hour=0;hour<30;hour++){
+        for(let minute=0;minute<60;minute+=5){
+          const value=`${pad2(hour)}:${pad2(minute)}`;
+          const option=document.createElement('option');
+          option.value=value;
+          option.textContent=value+(hour>=24?'（翌日）':'');
+          select.appendChild(option);
+        }
+      }
     }
 
     function goToday(){
@@ -632,7 +662,7 @@
       summaryParts.push(`カテゴリ <span class="font-black text-stone-800">${escapeHtml(curCat==='all'?'すべて':curCat)}</span> / 検索 <span class="font-black text-stone-800">${escapeHtml(curQuery ? `「${curQuery}」` : 'なし')}</span>`);
       summaryParts.push(`タグ <span class="font-black text-stone-800">${escapeHtml(tagArr.length ? `${tagMode} / ${tagArr.join(' ')}` : 'なし')}</span>`);
       summaryParts.push(`「いま営業中」ボタン <span class="font-black text-stone-800">${curNowOnly ? 'ON' : 'OFF'}</span>`);
-      summaryParts.push(`時刻指定 <span class="font-black text-stone-800">${timeFilterEnabled ? (timeFilterMode==='AM' ? '午前(05–11)' : `指定(${minToHHMM(timePickMin)})`) : 'OFF'}</span>`);
+      summaryParts.push(`時刻指定 <span class="font-black text-stone-800">${timeFilterEnabled ? (timeFilterMode==='AM' ? '午前(05–11)' : `指定(${formatTimeExtended(timePickMin)})`) : 'OFF'}</span>`);
       document.getElementById('filter-summary').innerHTML = summaryParts.join('<br>');
 
       function rowHtml(item, rightText, badgeClass){
@@ -651,8 +681,8 @@
       }
 
       const openNow = filteredBase
-        .map(d => ({ d, status: d.schedule[curDay] ?? '' }))
-        .filter(x => isOpenNowByStatus(x.status, nowMin))
+        .map(d => ({ d, status: statusForShopAt(d,curDay,nowMin) }))
+        .filter(x => isShopOpenAt(x.d,curDay,nowMin))
         .slice(0, 5);
 
       const boxOpen = document.getElementById('top-open-now');
@@ -662,8 +692,8 @@
 
       const soon = filteredBase
         .map(d => {
-          const status = d.schedule[curDay] ?? '';
-          const rem = closingSoonMinutes(status, nowMin, 30);
+          const status = statusForShopAt(d,curDay,nowMin);
+          const rem = closingSoonForShop(d, curDay, nowMin, 30);
           return { d, status, rem };
         })
         .filter(x => x.rem !== null)
@@ -677,8 +707,8 @@
 
       const next = filteredBase
         .map(d => {
-          const status = d.schedule[curDay] ?? '';
-          const nx = nextOpenInMinutes(status, nowMin);
+          const status = statusForShopAt(d,curDay,nowMin);
+          const nx = nextOpenForShop(d, curDay, nowMin);
           return { d, status, nx };
         })
         .filter(x => x.nx !== null)
@@ -687,7 +717,7 @@
 
       const boxNext = document.getElementById('next-open');
       boxNext.innerHTML = next.length
-        ? next.map(x => rowHtml(x.d, `${minToHHMM(x.nx.startMin)} 〜`, 'bg-stone-100 border-stone-200 text-stone-700')).join('')
+        ? next.map(x => rowHtml(x.d, `${formatTimeExtended(x.nx.startMin)} 〜`, 'bg-stone-100 border-stone-200 text-stone-700')).join('')
         : `<div class="text-[11px] text-stone-400">見つかりません</div>`;
     }
 
@@ -709,16 +739,16 @@
 
       const label = document.getElementById('time-filter-label');
       if(label){
-        label.textContent = timeFilterEnabled ? (timeFilterMode==='AM' ? '午前(05–11)' : `指定 ${minToHHMM(timePickMin)}`) : 'OFF';
+        label.textContent = timeFilterEnabled ? (timeFilterMode==='AM' ? '午前(05–11)' : `指定 ${formatTimeExtended(timePickMin)}`) : 'OFF';
       }
     }
 
-    function matchTimeFilter(statusRaw){
+    function matchTimeFilter(shop){
       if(!timeFilterEnabled) return true;
       if(timeFilterMode === 'AM'){
-        return isOpenDuring(statusRaw, 5*60, 11*60, 15);
+        return isShopOpenDuring(shop,curDay,5*60,11*60,15);
       }
-      return isOpenNowByStatus(statusRaw, timePickMin);
+      return isShopOpenAt(shop,curDay,timePickMin);
     }
 
     function toggleTimeFilter(on){
@@ -773,14 +803,12 @@
       const filteredBase = db.filter(d => baseFilter(d));
 
       const filteredTime = filteredBase.filter(d => {
-        const status = d.schedule[curDay] ?? '';
-        return matchTimeFilter(status);
+        return matchTimeFilter(d);
       });
 
       const filtered = filteredTime.filter(d=>{
         if(curNowOnly){
-          const status=d.schedule[curDay]??'';
-          return isOpenNowByStatus(status, nowMin);
+          return isShopOpenAt(d,curDay,nowMin);
         }
         return true;
       });
@@ -790,8 +818,9 @@
       let openCount=0, nightCount=0;
 
       filtered.forEach(d=>{
-        const status=d.schedule[curDay]??'';
-        const closed=isClosed(status);
+        const referenceMin = timeFilterEnabled && timeFilterMode==='POINT' ? timePickMin : nowMin;
+        const status=(curNowOnly || timeFilterEnabled) ? statusForShopAt(d,curDay,referenceMin) : (d.schedule[curDay]??'');
+        const closed=isClosed(status) && !isShopOpenAt(d,curDay,referenceMin);
 
         if(!closed){
           openCount++;
@@ -935,6 +964,7 @@
 
         setTimePick(timePick);
 
+        initTimeChoices();
         renderCatButtons();
         renderTagButtons();
         goToday();
